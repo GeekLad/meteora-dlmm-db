@@ -1157,10 +1157,6 @@ export default class MeteoraDlmmDb {
     return stream;
   }
 
-  downloadStats(account: string) {
-    return this._downloaders.get(account)?.stats;
-  }
-
   getMissingPairs(): string[] {
     return this._db
       .exec(`SELECT * FROM v_missing_pairs`)

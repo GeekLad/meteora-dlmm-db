@@ -29,7 +29,6 @@ export default class MeteoraDlmmDb {
     download(endpoint: string, account: string, callbacks?: {
         onDone?: (...args: any[]) => any;
     }): MeteoraDlmmStream;
-    downloadStats(account: string): import("./meteora-dlmm-downloader").MeteoraDlmmDownloaderStats | undefined;
     getMissingPairs(): string[];
     getMissingTokens(): string[];
     getMissingUsd(): string[];
