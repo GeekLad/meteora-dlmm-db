@@ -40,9 +40,11 @@ export default class MeteoraDlmmDb {
   private async _init(data?: ArrayLike<number> | Buffer | null) {
     const sql = await initSql();
     this._db = new sql.Database(data);
-    this._createTables();
+    if (!data) {
+      this._createTables();
+      this._addInitialData();
+    }
     this._createStatements();
-    this._addInitialData();
   }
 
   private _createTables() {
@@ -1249,5 +1251,9 @@ export default class MeteoraDlmmDb {
     while (statement.step()) output.push(statement.getAsObject() as Output);
     statement.reset();
     return output;
+  }
+
+  export(): Uint8Array {
+    return this._db.export();
   }
 }

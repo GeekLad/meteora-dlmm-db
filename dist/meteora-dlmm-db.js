@@ -33,9 +33,11 @@ export default class MeteoraDlmmDb {
         return __awaiter(this, void 0, void 0, function* () {
             const sql = yield initSql();
             this._db = new sql.Database(data);
-            this._createTables();
+            if (!data) {
+                this._createTables();
+                this._addInitialData();
+            }
             this._createStatements();
-            this._addInitialData();
         });
     }
     _createTables() {
@@ -1178,5 +1180,8 @@ export default class MeteoraDlmmDb {
             output.push(statement.getAsObject());
         statement.reset();
         return output;
+    }
+    export() {
+        return this._db.export();
     }
 }

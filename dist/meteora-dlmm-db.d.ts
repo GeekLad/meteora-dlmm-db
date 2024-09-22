@@ -36,4 +36,5 @@ export default class MeteoraDlmmDb {
     getOldestSignature(owner_address: string): string | undefined;
     cancelStream(account: string): void;
     private _getAll;
+    export(): Uint8Array;
 }
