@@ -50,3 +50,4 @@ export class JupiterTokenListApi {
 }
 _a = JupiterTokenListApi;
 JupiterTokenListApi._api = new ApiThrottleCache(MAX_CONCURRENT_REQUESTS, DELAY_MS, TOKEN_MAP, _a._getToken);
+//# sourceMappingURL=jupiter-token-list-api.js.map
