@@ -1,5 +1,5 @@
 import { type MeteoraDlmmInstruction } from "./meteora-instruction-parser";
-import initSqlJs, { type Database, type Statement } from "sql.js";
+import initSqlJs, { SqlJsStatic, type Database, type Statement } from "sql.js";
 import {
   type MeteoraDlmmPairData,
   type MeteoraPositionTransactions,
@@ -7,6 +7,24 @@ import {
 import { type TokenMeta } from "./jupiter-token-list-api";
 import MeteoraDlmmStream from "./meteora-dlmm-downloader";
 import { dbLoad, dbSave } from "./db-save";
+
+let SQL: SqlJsStatic;
+async function initSqlJsFromCdn() {
+  if (SQL) {
+    return SQL;
+  }
+
+  try {
+    return initSqlJs();
+  } catch (err) {
+    return initSqlJs({
+      // Fetch sql.js wasm file from CDN
+      // This way, we don't need to deal with webpack
+      locateFile: () =>
+        "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.11.0/sql-wasm.wasm",
+    });
+  }
+}
 
 export default class MeteoraDlmmDb {
   private _filename?: string;
@@ -34,7 +52,7 @@ export default class MeteoraDlmmDb {
       this._filename = filename;
       await this.readFromFile(filename);
     } else {
-      const sql = await initSqlJs();
+      const sql = await initSqlJsFromCdn();
       this._db = new sql.Database();
       this._createTables();
       this._createStatements();
@@ -1132,7 +1150,7 @@ export default class MeteoraDlmmDb {
     }
     this._filename = filename;
     const array = this._db.export();
-    dbSave(filename, array);
+    await dbSave(filename, array);
     this._db.close();
     this._init(filename);
   }
@@ -1140,7 +1158,7 @@ export default class MeteoraDlmmDb {
   async readFromFile(filename: string) {
     try {
       const buffer = await dbLoad(filename);
-      const sql = await initSqlJs();
+      const sql = await initSqlJsFromCdn();
       this._db = new sql.Database(buffer);
       this._createStatements();
     } catch (err) {

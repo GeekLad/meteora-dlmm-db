@@ -5,7 +5,7 @@ const isBrowser = new Function(
 let fs: any;
 let Dexie: any;
 export async function dbSave(filename: string, array: Uint8Array) {
-  if (!isBrowser) {
+  if (!isBrowser()) {
     return nodeSave(filename, array);
   }
   return browserSave(filename, array);
@@ -39,7 +39,7 @@ async function browserSave(filename: string, array: Uint8Array) {
 }
 
 export async function dbLoad(filename: string) {
-  if (!isBrowser) {
+  if (!isBrowser()) {
     return nodeLoad(filename);
   }
   return browserLoad(filename);

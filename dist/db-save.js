@@ -12,7 +12,7 @@ let fs;
 let Dexie;
 export function dbSave(filename, array) {
     return __awaiter(this, void 0, void 0, function* () {
-        if (!isBrowser) {
+        if (!isBrowser()) {
             return nodeSave(filename, array);
         }
         return browserSave(filename, array);
@@ -46,7 +46,7 @@ function browserSave(filename, array) {
 }
 export function dbLoad(filename) {
     return __awaiter(this, void 0, void 0, function* () {
-        if (!isBrowser) {
+        if (!isBrowser()) {
             return nodeLoad(filename);
         }
         return browserLoad(filename);

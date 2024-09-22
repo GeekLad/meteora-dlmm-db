@@ -70,7 +70,6 @@ export default class MeteoraDownloaderStream {
                     this._positionTransactionIds.add(instruction.signature);
                 });
             });
-            yield this._db.saveToFile("./livesave.db");
             const elapsed = Date.now() - start;
             console.log(`Added ${instructionCount} instructions in ${elapsed}ms`);
             this._fetchMissingPairs();
@@ -152,7 +151,6 @@ export default class MeteoraDownloaderStream {
                         this._db.addUsdTransactions(address, usd);
                         const elapsed = Math.round((Date.now() - this._startTime) / 1000);
                         console.log(`${elapsed}s - Added USD transactions for position ${address}`);
-                        yield this._db.saveToFile("./livesave.db");
                     }
                     missingUsd = this._db.getMissingUsd();
                     if (missingUsd.length > 0) {
