@@ -1184,4 +1184,8 @@ export default class MeteoraDlmmDb {
     export() {
         return this._db.export();
     }
+    reload(data) {
+        this._db.close();
+        this._init(data);
+    }
 }

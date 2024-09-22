@@ -1256,4 +1256,9 @@ export default class MeteoraDlmmDb {
   export(): Uint8Array {
     return this._db.export();
   }
+
+  reload(data: ArrayLike<number> | Buffer | null) {
+    this._db.close();
+    this._init(data);
+  }
 }
