@@ -104,11 +104,11 @@ export class ParsedTransactionStream {
                     continue;
                 }
                 const newValidSignatures = this._filterSignatures();
-                if (this._onSignaturesReceived) {
+                if (this._onSignaturesReceived && !this._cancelled) {
                     yield this._onSignaturesReceived(this._currentSignatures);
                 }
                 validSignatures = validSignatures.concat(newValidSignatures);
-                if (validSignatures.length >= this._chunkSize) {
+                if (validSignatures.length >= this._chunkSize && !this._cancelled) {
                     yield this._sendParsedTransactions(validSignatures);
                     validSignatures = [];
                 }
@@ -148,6 +148,9 @@ export class ParsedTransactionStream {
             const chunks = chunkArray(validSignatures, Math.ceil(this._chunkSize));
             for (let i = 0; i < chunks.length; i++) {
                 const transactions = yield ParsedTransactionStream._apiThrottle.processItem(chunks[i].map((signature) => signature.signature), (signatures) => this._getParsedTransactions(signatures));
+                if (this.cancelled) {
+                    return;
+                }
                 yield this._onParsedTransactionsReceived(transactions);
             }
         });

@@ -209,11 +209,11 @@ export class ParsedTransactionStream {
         continue;
       }
       const newValidSignatures = this._filterSignatures();
-      if (this._onSignaturesReceived) {
+      if (this._onSignaturesReceived && !this._cancelled) {
         await this._onSignaturesReceived(this._currentSignatures);
       }
       validSignatures = validSignatures.concat(newValidSignatures);
-      if (validSignatures.length >= this._chunkSize) {
+      if (validSignatures.length >= this._chunkSize && !this._cancelled) {
         await this._sendParsedTransactions(validSignatures);
         validSignatures = [];
       }
@@ -270,6 +270,10 @@ export class ParsedTransactionStream {
           chunks[i].map((signature) => signature.signature),
           (signatures) => this._getParsedTransactions(signatures),
         );
+      if (this.cancelled) {
+        return;
+      }
+
       await this._onParsedTransactionsReceived(transactions);
     }
   }
