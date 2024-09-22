@@ -1,5 +1,3 @@
-import fs from "fs";
-
 import { type MeteoraDlmmInstruction } from "./meteora-instruction-parser";
 import initSqlJs, { type Database, type Statement } from "sql.js";
 import {
@@ -8,6 +6,7 @@ import {
 } from "./meteora-dlmm-api";
 import { type TokenMeta } from "./jupiter-token-list-api";
 import MeteoraDlmmStream from "./meteora-dlmm-downloader";
+import { dbLoad, dbSave } from "./db-save";
 
 export default class MeteoraDlmmDb {
   private _filename?: string;
@@ -1133,14 +1132,14 @@ export default class MeteoraDlmmDb {
     }
     this._filename = filename;
     const array = this._db.export();
-    fs.writeFileSync(filename, array);
+    dbSave(filename, array);
     this._db.close();
     this._init(filename);
   }
 
   async readFromFile(filename: string) {
     try {
-      const buffer = fs.readFileSync(filename);
+      const buffer = await dbLoad(filename);
       const sql = await initSqlJs();
       this._db = new sql.Database(buffer);
       this._createStatements();
