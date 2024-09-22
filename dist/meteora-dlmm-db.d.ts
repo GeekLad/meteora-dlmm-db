@@ -37,5 +37,5 @@ export default class MeteoraDlmmDb {
     cancelStream(account: string): void;
     private _getAll;
     export(): Uint8Array;
-    reload(data: ArrayLike<number> | Buffer | null): void;
+    reload(data: ArrayLike<number> | Buffer | null): Promise<void>;
 }

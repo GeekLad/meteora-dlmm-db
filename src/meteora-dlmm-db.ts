@@ -1257,7 +1257,7 @@ export default class MeteoraDlmmDb {
     return this._db.export();
   }
 
-  reload(data: ArrayLike<number> | Buffer | null) {
+  async reload(data: ArrayLike<number> | Buffer | null) {
     this._db.close();
     this._init(data);
   }
