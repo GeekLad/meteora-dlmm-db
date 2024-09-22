@@ -1098,6 +1098,10 @@ export default class MeteoraDlmmDb {
         this._downloaders.set(account, stream);
         return stream;
     }
+    downloadStats(account) {
+        var _a;
+        return (_a = this._downloaders.get(account)) === null || _a === void 0 ? void 0 : _a.stats;
+    }
     getMissingPairs() {
         return this._db
             .exec(`SELECT * FROM v_missing_pairs`)
@@ -1186,7 +1190,7 @@ export default class MeteoraDlmmDb {
     }
     reload(data) {
         return __awaiter(this, void 0, void 0, function* () {
-            this._db.close();
+            yield this._db.close();
             this._init(data);
         });
     }

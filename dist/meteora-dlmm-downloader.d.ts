@@ -2,7 +2,7 @@ import MeteoraDlmmDb from "./meteora-dlmm-db";
 interface MeteoraDlmmDownloaderCallbacks {
     onDone?: (...args: any[]) => any;
 }
-interface MeteoraDlmmDownloaderStats {
+export interface MeteoraDlmmDownloaderStats {
     downloadingComplete: boolean;
     secondsElapsed: number;
     accountSignatureCount: number;
