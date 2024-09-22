@@ -1184,11 +1184,5 @@ export default class MeteoraDlmmDb {
     export() {
         return this._db.export();
     }
-    reload(data) {
-        return __awaiter(this, void 0, void 0, function* () {
-            yield this._db.close();
-            this._init(data);
-        });
-    }
 }
 //# sourceMappingURL=meteora-dlmm-db.js.map

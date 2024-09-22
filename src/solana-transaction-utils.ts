@@ -260,6 +260,9 @@ export class ParsedTransactionStream {
   private async _sendParsedTransactions(
     validSignatures: ConfirmedSignatureInfo[],
   ) {
+    if (this.cancelled) {
+      return;
+    }
     const chunks = chunkArray(validSignatures, Math.ceil(this._chunkSize));
     for (let i = 0; i < chunks.length; i++) {
       const transactions =

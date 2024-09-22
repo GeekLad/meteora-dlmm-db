@@ -39,6 +39,7 @@ export default class MeteoraDownloaderStream {
         this._positionAddresses = new Set();
         this._usdPositionAddresses = new Set();
         this._isComplete = false;
+        this._cancelled = false;
         this._db = db;
         this._account = account;
         this._isComplete = db.isComplete(this._account);
@@ -50,8 +51,8 @@ export default class MeteoraDownloaderStream {
                 ? this._db.getOldestSignature(this._account)
                 : undefined,
             mostRecentSignature: this._db.getMostRecentSignature(this._account),
-            onParsedTransactionsReceived: (transactions) => this._loadInstructions(transactions),
             onSignaturesReceived: (signatures) => this._onNewSignaturesReceived(signatures),
+            onParsedTransactionsReceived: (transactions) => this._loadInstructions(transactions),
             onDone: () => {
                 this._isDone = true;
                 this._fetchMissingPairs();
@@ -60,6 +61,9 @@ export default class MeteoraDownloaderStream {
     }
     _loadInstructions(transactions) {
         return __awaiter(this, void 0, void 0, function* () {
+            if (this._cancelled) {
+                return;
+            }
             let instructionCount = 0;
             const start = Date.now();
             transactions.forEach((transaction) => {
@@ -98,6 +102,9 @@ export default class MeteoraDownloaderStream {
                     const address = missingPairs.shift();
                     if (address) {
                         const missingPair = yield MeteoraDlmmApi.getDlmmPairData(address);
+                        if (this._cancelled) {
+                            return;
+                        }
                         this._db.addPair(missingPair);
                         console.log(`Added missing pair for ${missingPair.name}`);
                         missingPairs = this._db.getMissingPairs();
@@ -121,6 +128,9 @@ export default class MeteoraDownloaderStream {
                     if (address) {
                         const missingToken = yield JupiterTokenListApi.getToken(address);
                         if (missingToken) {
+                            if (this._cancelled) {
+                                return;
+                            }
                             this._db.addToken(missingToken);
                             console.log(`Added missing token ${missingToken.symbol}`);
                         }
@@ -148,6 +158,9 @@ export default class MeteoraDownloaderStream {
                     if (address) {
                         this._usdPositionAddresses.add(address);
                         const usd = yield MeteoraDlmmApi.getTransactions(address);
+                        if (this._cancelled) {
+                            return;
+                        }
                         this._db.addUsdTransactions(address, usd);
                         const elapsed = Math.round((Date.now() - this._startTime) / 1000);
                         console.log(`${elapsed}s - Added USD transactions for position ${address}`);
@@ -169,6 +182,7 @@ export default class MeteoraDownloaderStream {
         }
     }
     cancel() {
+        this._cancelled = true;
         this._stream.cancel();
     }
 }

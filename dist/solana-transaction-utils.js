@@ -142,6 +142,9 @@ export class ParsedTransactionStream {
     }
     _sendParsedTransactions(validSignatures) {
         return __awaiter(this, void 0, void 0, function* () {
+            if (this.cancelled) {
+                return;
+            }
             const chunks = chunkArray(validSignatures, Math.ceil(this._chunkSize));
             for (let i = 0; i < chunks.length; i++) {
                 const transactions = yield ParsedTransactionStream._apiThrottle.processItem(chunks[i].map((signature) => signature.signature), (signatures) => this._getParsedTransactions(signatures));

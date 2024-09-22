@@ -26,6 +26,7 @@ export default class MeteoraDownloaderStream {
     private _positionAddresses;
     private _usdPositionAddresses;
     private _isComplete;
+    private _cancelled;
     get downloadComplete(): boolean;
     get stats(): MeteoraDlmmDownloaderStats;
     constructor(db: MeteoraDlmmDb, endpoint: string, account: string, callbacks?: MeteoraDlmmDownloaderCallbacks);
