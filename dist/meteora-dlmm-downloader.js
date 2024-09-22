@@ -68,6 +68,9 @@ export default class MeteoraDownloaderStream {
             const start = Date.now();
             transactions.forEach((transaction) => {
                 parseMeteoraInstructions(transaction).forEach((instruction) => {
+                    if (this._cancelled) {
+                        return;
+                    }
                     this._db.addInstruction(instruction);
                     instructionCount++;
                     this._positionAddresses.add(instruction.accounts.position);

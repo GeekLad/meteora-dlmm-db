@@ -270,6 +270,7 @@ export class ParsedTransactionStream {
           chunks[i].map((signature) => signature.signature),
           (signatures) => this._getParsedTransactions(signatures),
         );
+
       if (this.cancelled) {
         return;
       }
