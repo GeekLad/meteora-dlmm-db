@@ -1,6 +1,6 @@
-import fs from "fs";
 import initSqlJs from "sql.js";
 import MeteoraDlmmStream from "./meteora-dlmm-downloader";
+import { dbLoad, dbSave } from "./db-save";
 export default class MeteoraDlmmDb {
     constructor() {
         this._downloaders = new Map();
@@ -1067,13 +1067,13 @@ export default class MeteoraDlmmDb {
         }
         this._filename = filename;
         const array = this._db.export();
-        fs.writeFileSync(filename, array);
+        dbSave(filename, array);
         this._db.close();
         this._init(filename);
     }
     async readFromFile(filename) {
         try {
-            const buffer = fs.readFileSync(filename);
+            const buffer = await dbLoad(filename);
             const sql = await initSqlJs();
             this._db = new sql.Database(buffer);
             this._createStatements();
