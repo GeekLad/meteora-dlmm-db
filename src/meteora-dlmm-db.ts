@@ -6,28 +6,16 @@ import {
 } from "./meteora-dlmm-api";
 import { type TokenMeta } from "./jupiter-token-list-api";
 import MeteoraDlmmStream from "./meteora-dlmm-downloader";
-import { dbLoad, dbSave } from "./db-save";
 
 let SQL: SqlJsStatic;
-async function initSqlJsFromCdn() {
+async function initSql() {
   if (SQL) {
     return SQL;
   }
-
-  try {
-    return initSqlJs();
-  } catch (err) {
-    return initSqlJs({
-      // Fetch sql.js wasm file from CDN
-      // This way, we don't need to deal with webpack
-      locateFile: () =>
-        "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.11.0/sql-wasm.wasm",
-    });
-  }
+  return initSqlJs();
 }
 
 export default class MeteoraDlmmDb {
-  private _filename?: string;
   private _db!: Database;
   private _addInstructionStatement!: Statement;
   private _addTransferStatement!: Statement;
@@ -41,23 +29,20 @@ export default class MeteoraDlmmDb {
 
   private constructor() {}
 
-  static async create(filename?: string): Promise<MeteoraDlmmDb> {
+  static async create(
+    data?: ArrayLike<number> | Buffer | null,
+  ): Promise<MeteoraDlmmDb> {
     const db = new MeteoraDlmmDb();
-    await db._init(filename);
+    await db._init(data);
     return db;
   }
 
-  private async _init(filename?: string) {
-    if (filename) {
-      this._filename = filename;
-      await this.readFromFile(filename);
-    } else {
-      const sql = await initSqlJsFromCdn();
-      this._db = new sql.Database();
-      this._createTables();
-      this._createStatements();
-      this._addInitialData();
-    }
+  private async _init(data?: ArrayLike<number> | Buffer | null) {
+    const sql = await initSql();
+    this._db = new sql.Database(data);
+    this._createTables();
+    this._createStatements();
+    this._addInitialData();
   }
 
   private _createTables() {
@@ -164,7 +149,7 @@ export default class MeteoraDlmmDb {
       ------------------------
       -- Completed Accounts --
       ------------------------
-      CREATE TABLE completed_accounts (
+      CREATE TABLE IF NOT EXISTS completed_accounts (
         account_address TEXT NOT NULL,
         CONSTRAINT completed_accounts_account_address PRIMARY KEY (account_address)
       );
@@ -1138,44 +1123,6 @@ export default class MeteoraDlmmDb {
       .flat();
 
     return completed.length == 1;
-  }
-
-  async saveToFile(filename?: string) {
-    if (!filename) {
-      if (!this._filename) {
-        throw new Error("Filename is required");
-      } else {
-        filename = this._filename;
-      }
-    }
-    this._filename = filename;
-    const array = this._db.export();
-    await dbSave(filename, array);
-    this._db.close();
-    this._init(filename);
-  }
-
-  async readFromFile(filename: string) {
-    try {
-      const buffer = await dbLoad(filename);
-      const sql = await initSqlJsFromCdn();
-      this._db = new sql.Database(buffer);
-      this._createStatements();
-    } catch (err) {
-      // @ts-ignore
-      if (err.code == "ENOENT") {
-        // If the file doesn't exist, create it
-        await this._init();
-        await this.saveToFile(filename);
-      } else {
-        // If we got some other error, throw it
-        throw err;
-      }
-    }
-  }
-
-  close() {
-    this._db.close();
   }
 
   download(

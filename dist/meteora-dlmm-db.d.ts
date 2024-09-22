@@ -3,7 +3,6 @@ import { type MeteoraDlmmPairData, type MeteoraPositionTransactions } from "./me
 import { type TokenMeta } from "./jupiter-token-list-api";
 import MeteoraDlmmStream from "./meteora-dlmm-downloader";
 export default class MeteoraDlmmDb {
-    private _filename?;
     private _db;
     private _addInstructionStatement;
     private _addTransferStatement;
@@ -15,7 +14,7 @@ export default class MeteoraDlmmDb {
     private _markCompleteStatement;
     private _downloaders;
     private constructor();
-    static create(filename?: string): Promise<MeteoraDlmmDb>;
+    static create(data?: ArrayLike<number> | Buffer | null): Promise<MeteoraDlmmDb>;
     private _init;
     private _createTables;
     private _createStatements;
@@ -27,9 +26,6 @@ export default class MeteoraDlmmDb {
     addUsdTransactions(position_address: string, transactions: MeteoraPositionTransactions): void;
     markComplete($account_address: string): void;
     isComplete(account_address: string): boolean;
-    saveToFile(filename?: string): Promise<void>;
-    readFromFile(filename: string): Promise<void>;
-    close(): void;
     download(endpoint: string, account: string, callbacks?: {
         onDone?: (...args: any[]) => any;
     }): MeteoraDlmmStream;

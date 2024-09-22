@@ -11,7 +11,6 @@
     "@project-serum/anchor": "^0.26.0",
     "@solana/spl-token": "^0.4.8",
     "@solana/web3.js": "^1.95.3",
-    "dexie": "^4.0.8",
     "sql.js": "^1.11.0"
   },
   "devDependencies": {
