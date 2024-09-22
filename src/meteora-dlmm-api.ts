@@ -1,4 +1,4 @@
-import * as cache from "./meteora-dlmm-cache.json";
+import cache from "./meteora-dlmm-cache";
 import { ApiThrottleCache } from "./util";
 
 interface MeteoraDlmmPairDetail {

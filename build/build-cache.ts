@@ -5,22 +5,25 @@ import {
   TOKEN_MAP,
   TokenMeta,
 } from "../src/jupiter-token-list-api";
-import * as tokenCache from "../src/jupiter-token-list-cache.json";
+import tokenCache from "../src/jupiter-token-list-cache.ts";
 
 const ingoreTokens: string[] = tokenCache.ignore;
 const now = new Date();
 
 async function saveTokens(tokens: TokenMeta[], ignoreTokens: string[]) {
   await Bun.write(
-    "./src/jupiter-token-list-cache.json",
-    JSON.stringify({
+    "./src/jupiter-token-list-cache.ts",
+    `
+const cache = ${JSON.stringify({
       lastUpdated: `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`,
       ignore: Array.from(new Set(ignoreTokens)),
       tokens: tokens.map((token) => {
         const { address, name, symbol, decimals, logoURI } = token;
         return [address, name, symbol, decimals, logoURI];
       }),
-    }),
+    })};
+export default cache;
+  `,
   );
 }
 
@@ -40,11 +43,14 @@ fetchedPairs.forEach((pair) => {
   }
 });
 await Bun.write(
-  "./src/meteora-dlmm-cache.json",
-  JSON.stringify({
+  "./src/meteora-dlmm-cache.ts",
+  `
+const cache = ${JSON.stringify({
     lastUpdated: `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`,
     pairs: pairs.map((pair) => Object.values(pair)),
-  }),
+  })};
+export default cache;
+  `,
 );
 if (newPairCount > 0) {
   console.log(`Saved ${newPairCount} new pairs`);

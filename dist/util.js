@@ -1,5 +1,16 @@
-export async function delay(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+export function delay(ms) {
+    return __awaiter(this, void 0, void 0, function* () {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+    });
 }
 export function chunkArray(array, size) {
     if (size <= 0)
@@ -24,42 +35,46 @@ export class ApiThrottleCache {
     addCache(cache, processingFunction) {
         this._cache.set(processingFunction, cache);
     }
-    async processItem(input, processingFunction) {
-        const cachedResult = this._getCachedResult(processingFunction, input);
-        if (cachedResult) {
-            return cachedResult;
-        }
-        const key = this._getKey(processingFunction, input);
-        const activeRequests = this._getActiveRequests(processingFunction);
-        if (activeRequests.has(key)) {
-            return activeRequests.get(key);
-        }
-        const promise = new Promise(async (resolve) => {
-            await this._throttle();
-            const output = await processingFunction(input);
-            this._addCachedResult(processingFunction, input, output);
-            resolve(output);
-            activeRequests.delete(key);
+    processItem(input, processingFunction) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const cachedResult = this._getCachedResult(processingFunction, input);
+            if (cachedResult) {
+                return cachedResult;
+            }
+            const key = this._getKey(processingFunction, input);
+            const activeRequests = this._getActiveRequests(processingFunction);
+            if (activeRequests.has(key)) {
+                return activeRequests.get(key);
+            }
+            const promise = new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
+                yield this._throttle();
+                const output = yield processingFunction(input);
+                this._addCachedResult(processingFunction, input, output);
+                resolve(output);
+                activeRequests.delete(key);
+            }));
+            activeRequests.set(key, promise);
+            return promise;
         });
-        activeRequests.set(key, promise);
-        return promise;
     }
-    async _throttle() {
-        while (this._requestWindow.length >= this._max) {
-            // Calculate wait time based on the oldest request in the window
-            const oldestTime = this._requestWindow[0];
-            const timeToWait = this._interval - (Date.now() - oldestTime);
-            if (timeToWait > 0) {
-                // Wait for the calculated time
-                await delay(timeToWait);
+    _throttle() {
+        return __awaiter(this, void 0, void 0, function* () {
+            while (this._requestWindow.length >= this._max) {
+                // Calculate wait time based on the oldest request in the window
+                const oldestTime = this._requestWindow[0];
+                const timeToWait = this._interval - (Date.now() - oldestTime);
+                if (timeToWait > 0) {
+                    // Wait for the calculated time
+                    yield delay(timeToWait);
+                }
+                else {
+                    // Remove the oldest request time if it's outside the interval
+                    this._requestTimes.shift();
+                }
             }
-            else {
-                // Remove the oldest request time if it's outside the interval
-                this._requestTimes.shift();
-            }
-        }
-        // Add the current timestamp after ensuring space in the window
-        this._requestTimes.push(Date.now());
+            // Add the current timestamp after ensuring space in the window
+            this._requestTimes.push(Date.now());
+        });
     }
     get _requestWindow() {
         const now = Date.now();
@@ -106,37 +121,41 @@ export class ApiThrottle {
         this._max = max;
         this._interval = interval;
     }
-    async processItem(input, processingFunction) {
-        const key = this._getKey(processingFunction, input);
-        const activeRequests = this._getActiveRequests(processingFunction);
-        if (activeRequests.has(key)) {
-            return activeRequests.get(key);
-        }
-        const promise = new Promise(async (resolve) => {
-            await this._throttle();
-            const output = await processingFunction(input);
-            resolve(output);
-            activeRequests.delete(key);
+    processItem(input, processingFunction) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const key = this._getKey(processingFunction, input);
+            const activeRequests = this._getActiveRequests(processingFunction);
+            if (activeRequests.has(key)) {
+                return activeRequests.get(key);
+            }
+            const promise = new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
+                yield this._throttle();
+                const output = yield processingFunction(input);
+                resolve(output);
+                activeRequests.delete(key);
+            }));
+            activeRequests.set(key, promise);
+            return promise;
         });
-        activeRequests.set(key, promise);
-        return promise;
     }
-    async _throttle() {
-        while (this._requestWindow.length >= this._max) {
-            // Calculate wait time based on the oldest request in the window
-            const oldestTime = this._requestWindow[0];
-            const timeToWait = this._interval - (Date.now() - oldestTime);
-            if (timeToWait > 0) {
-                // Wait for the calculated time
-                await delay(timeToWait);
+    _throttle() {
+        return __awaiter(this, void 0, void 0, function* () {
+            while (this._requestWindow.length >= this._max) {
+                // Calculate wait time based on the oldest request in the window
+                const oldestTime = this._requestWindow[0];
+                const timeToWait = this._interval - (Date.now() - oldestTime);
+                if (timeToWait > 0) {
+                    // Wait for the calculated time
+                    yield delay(timeToWait);
+                }
+                else {
+                    // Remove the oldest request time if it's outside the interval
+                    this._requestTimes.shift();
+                }
             }
-            else {
-                // Remove the oldest request time if it's outside the interval
-                this._requestTimes.shift();
-            }
-        }
-        // Add the current timestamp after ensuring space in the window
-        this._requestTimes.push(Date.now());
+            // Add the current timestamp after ensuring space in the window
+            this._requestTimes.push(Date.now());
+        });
     }
     get _requestWindow() {
         const now = Date.now();

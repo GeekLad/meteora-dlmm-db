@@ -47,11 +47,12 @@ export function sortMeteoraInstructions(instructions) {
     });
 }
 export function parseMeteoraInstructions(transaction) {
+    var _a;
     if (transaction == null) {
         return [];
     }
     const parsedInstructions = transaction.transaction.message.instructions.map((instruction) => parseMeteoraInstruction(transaction, instruction));
-    if (transaction.meta?.innerInstructions) {
+    if ((_a = transaction.meta) === null || _a === void 0 ? void 0 : _a.innerInstructions) {
         const innerInstructions = transaction.meta.innerInstructions
             .map((instruction) => instruction.instructions)
             .flat()

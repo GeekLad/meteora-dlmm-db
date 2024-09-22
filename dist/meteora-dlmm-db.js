@@ -1,3 +1,12 @@
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
 import initSqlJs from "sql.js";
 import MeteoraDlmmStream from "./meteora-dlmm-downloader";
 import { dbLoad, dbSave } from "./db-save";
@@ -5,23 +14,27 @@ export default class MeteoraDlmmDb {
     constructor() {
         this._downloaders = new Map();
     }
-    static async create(filename) {
-        const db = new MeteoraDlmmDb();
-        await db._init(filename);
-        return db;
+    static create(filename) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const db = new MeteoraDlmmDb();
+            yield db._init(filename);
+            return db;
+        });
     }
-    async _init(filename) {
-        if (filename) {
-            this._filename = filename;
-            await this.readFromFile(filename);
-        }
-        else {
-            const sql = await initSqlJs();
-            this._db = new sql.Database();
-            this._createTables();
-            this._createStatements();
-            this._addInitialData();
-        }
+    _init(filename) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (filename) {
+                this._filename = filename;
+                yield this.readFromFile(filename);
+            }
+            else {
+                const sql = yield initSqlJs();
+                this._db = new sql.Database();
+                this._createTables();
+                this._createStatements();
+                this._addInitialData();
+            }
+        });
     }
     _createTables() {
         this._db.exec(`
@@ -1056,40 +1069,44 @@ export default class MeteoraDlmmDb {
             .flat();
         return completed.length == 1;
     }
-    async saveToFile(filename) {
-        if (!filename) {
-            if (!this._filename) {
-                throw new Error("Filename is required");
+    saveToFile(filename) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (!filename) {
+                if (!this._filename) {
+                    throw new Error("Filename is required");
+                }
+                else {
+                    filename = this._filename;
+                }
             }
-            else {
-                filename = this._filename;
-            }
-        }
-        this._filename = filename;
-        const array = this._db.export();
-        dbSave(filename, array);
-        this._db.close();
-        this._init(filename);
+            this._filename = filename;
+            const array = this._db.export();
+            dbSave(filename, array);
+            this._db.close();
+            this._init(filename);
+        });
     }
-    async readFromFile(filename) {
-        try {
-            const buffer = await dbLoad(filename);
-            const sql = await initSqlJs();
-            this._db = new sql.Database(buffer);
-            this._createStatements();
-        }
-        catch (err) {
-            // @ts-ignore
-            if (err.code == "ENOENT") {
-                // If the file doesn't exist, create it
-                await this._init();
-                await this.saveToFile(filename);
+    readFromFile(filename) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const buffer = yield dbLoad(filename);
+                const sql = yield initSqlJs();
+                this._db = new sql.Database(buffer);
+                this._createStatements();
             }
-            else {
-                // If we got some other error, throw it
-                throw err;
+            catch (err) {
+                // @ts-ignore
+                if (err.code == "ENOENT") {
+                    // If the file doesn't exist, create it
+                    yield this._init();
+                    yield this.saveToFile(filename);
+                }
+                else {
+                    // If we got some other error, throw it
+                    throw err;
+                }
             }
-        }
+        });
     }
     close() {
         this._db.close();
@@ -1191,7 +1208,8 @@ export default class MeteoraDlmmDb {
         return signature[0];
     }
     cancelStream(account) {
-        this._downloaders.get(account)?.cancel();
+        var _a;
+        (_a = this._downloaders.get(account)) === null || _a === void 0 ? void 0 : _a.cancel();
         this._downloaders.delete(account);
     }
     _getAll(statement) {

@@ -1,4 +1,4 @@
-import * as cache from "./jupiter-token-list-cache.json";
+import cache from "./jupiter-token-list-cache";
 import { ApiThrottleCache } from "./util";
 
 const JUPITER_TOKEN_LIST_API = "https://tokens.jup.ag";

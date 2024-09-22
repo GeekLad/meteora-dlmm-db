@@ -1,12 +1,22 @@
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
 import { Connection, PublicKey, } from "@solana/web3.js";
 import { ApiThrottle, chunkArray } from "./util";
 const CHUNK_SIZE = 250;
 export function getInstructionIndex(transaction, instruction) {
+    var _a;
     const index = transaction.transaction.message.instructions.indexOf(instruction);
     if (index != -1) {
         return index;
     }
-    if (transaction.meta?.innerInstructions) {
+    if ((_a = transaction.meta) === null || _a === void 0 ? void 0 : _a.innerInstructions) {
         const outerInstruction = transaction.meta.innerInstructions.find((innerInstruction) => innerInstruction.instructions.find((i) => i == instruction));
         if (outerInstruction) {
             return outerInstruction.index;
@@ -33,10 +43,11 @@ export function getAccountMetas(transaction, instruction) {
         .filter((meta) => meta !== null);
 }
 export function getTokenTransfers(transaction, index) {
+    var _a, _b;
     if (index == -1) {
         return [];
     }
-    const instruction = transaction.meta?.innerInstructions?.find((i) => i.index == index);
+    const instruction = (_b = (_a = transaction.meta) === null || _a === void 0 ? void 0 : _a.innerInstructions) === null || _b === void 0 ? void 0 : _b.find((i) => i.index == index);
     if (instruction == undefined) {
         return [];
     }
@@ -61,16 +72,17 @@ export class ParsedTransactionStream {
         return this._cancelled;
     }
     constructor(endpoint, account, config) {
+        var _a, _b;
         this._cancelled = false;
         this._currentSignatures = [];
         this._account = new PublicKey(account);
         this._connection = new Connection(endpoint, config);
-        this._mostRecentSignature = config?.mostRecentSignature;
-        this._oldestSignature = config?.oldestSignature;
-        this._oldestDate = config?.oldestDate;
-        this._chunkSize = config?.chunkSize || CHUNK_SIZE;
+        this._mostRecentSignature = config === null || config === void 0 ? void 0 : config.mostRecentSignature;
+        this._oldestSignature = config === null || config === void 0 ? void 0 : config.oldestSignature;
+        this._oldestDate = config === null || config === void 0 ? void 0 : config.oldestDate;
+        this._chunkSize = (config === null || config === void 0 ? void 0 : config.chunkSize) || CHUNK_SIZE;
         if (!ParsedTransactionStream._apiThrottle) {
-            ParsedTransactionStream._apiThrottle = new ApiThrottle(config?.throttleParameters?.maxRequests || Infinity, config?.throttleParameters?.interval || 0);
+            ParsedTransactionStream._apiThrottle = new ApiThrottle(((_a = config === null || config === void 0 ? void 0 : config.throttleParameters) === null || _a === void 0 ? void 0 : _a.maxRequests) || Infinity, ((_b = config === null || config === void 0 ? void 0 : config.throttleParameters) === null || _b === void 0 ? void 0 : _b.interval) || 0);
         }
         this._onParsedTransactionsReceived = config.onParsedTransactionsReceived;
         this._onSignaturesReceived = config.onSignaturesReceived;
@@ -81,32 +93,34 @@ export class ParsedTransactionStream {
         stream._stream();
         return stream;
     }
-    async _stream() {
-        let validSignatures = [];
-        let before = this._mostRecentSignature ? undefined : this._oldestSignature;
-        do {
-            this._currentSignatures =
-                await ParsedTransactionStream._apiThrottle.processItem(before, (before) => this._getSignaturesForAddress(before));
-            if (this._currentSignatures.length == 0) {
-                continue;
+    _stream() {
+        return __awaiter(this, void 0, void 0, function* () {
+            let validSignatures = [];
+            let before = this._mostRecentSignature ? undefined : this._oldestSignature;
+            do {
+                this._currentSignatures =
+                    yield ParsedTransactionStream._apiThrottle.processItem(before, (before) => this._getSignaturesForAddress(before));
+                if (this._currentSignatures.length == 0) {
+                    continue;
+                }
+                const newValidSignatures = this._filterSignatures();
+                if (this._onSignaturesReceived) {
+                    yield this._onSignaturesReceived(this._currentSignatures);
+                }
+                validSignatures = validSignatures.concat(newValidSignatures);
+                if (validSignatures.length >= this._chunkSize) {
+                    yield this._sendParsedTransactions(validSignatures);
+                    validSignatures = [];
+                }
+                before = this._before;
+            } while (this._continue);
+            if (!this._cancelled) {
+                yield this._sendParsedTransactions(validSignatures);
             }
-            const newValidSignatures = this._filterSignatures();
-            if (this._onSignaturesReceived) {
-                await this._onSignaturesReceived(this._currentSignatures);
+            if (this._onDone) {
+                this._onDone();
             }
-            validSignatures = validSignatures.concat(newValidSignatures);
-            if (validSignatures.length >= this._chunkSize) {
-                await this._sendParsedTransactions(validSignatures);
-                validSignatures = [];
-            }
-            before = this._before;
-        } while (this._continue);
-        if (!this._cancelled) {
-            await this._sendParsedTransactions(validSignatures);
-        }
-        if (this._onDone) {
-            this._onDone();
-        }
+        });
     }
     _getSignaturesForAddress(before) {
         return this._connection.getSignaturesForAddress(this._account, {
@@ -126,12 +140,14 @@ export class ParsedTransactionStream {
         }
         return this._currentSignatures.filter((signature) => !signature.err);
     }
-    async _sendParsedTransactions(validSignatures) {
-        const chunks = chunkArray(validSignatures, Math.ceil(this._chunkSize));
-        for (let i = 0; i < chunks.length; i++) {
-            const transactions = await ParsedTransactionStream._apiThrottle.processItem(chunks[i].map((signature) => signature.signature), (signatures) => this._getParsedTransactions(signatures));
-            await this._onParsedTransactionsReceived(transactions);
-        }
+    _sendParsedTransactions(validSignatures) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const chunks = chunkArray(validSignatures, Math.ceil(this._chunkSize));
+            for (let i = 0; i < chunks.length; i++) {
+                const transactions = yield ParsedTransactionStream._apiThrottle.processItem(chunks[i].map((signature) => signature.signature), (signatures) => this._getParsedTransactions(signatures));
+                yield this._onParsedTransactionsReceived(transactions);
+            }
+        });
     }
     _getParsedTransactions(validSignatures) {
         return this._connection.getParsedTransactions(validSignatures, {
