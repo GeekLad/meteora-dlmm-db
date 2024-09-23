@@ -6,6 +6,7 @@ export interface MeteoraDlmmDownloaderStats {
     downloadingComplete: boolean;
     secondsElapsed: number;
     accountSignatureCount: number;
+    oldestTransactionDate?: Date;
     positionTransactionCount: number;
     positionCount: number;
     usdPositionCount: number;
@@ -15,6 +16,7 @@ export default class MeteoraDownloaderStream {
     private _account;
     private _stream;
     private _gotNewest;
+    private _oldestTransactionDate?;
     private _fetchingMissingPairs;
     private _fetchingMissingTokens;
     private _fetchingUsd;

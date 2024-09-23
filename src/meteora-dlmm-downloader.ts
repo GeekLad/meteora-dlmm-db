@@ -16,6 +16,7 @@ export interface MeteoraDlmmDownloaderStats {
   downloadingComplete: boolean;
   secondsElapsed: number;
   accountSignatureCount: number;
+  oldestTransactionDate?: Date;
   positionTransactionCount: number;
   positionCount: number;
   usdPositionCount: number;
@@ -26,6 +27,7 @@ export default class MeteoraDownloaderStream {
   private _account!: string;
   private _stream!: ParsedTransactionStream;
   private _gotNewest = false;
+  private _oldestTransactionDate?: Date;
   private _fetchingMissingPairs = false;
   private _fetchingMissingTokens = false;
   private _fetchingUsd = false;
@@ -116,10 +118,15 @@ export default class MeteoraDownloaderStream {
     const newest = !this._gotNewest ? signatures[0].signature : undefined;
     this._gotNewest = true;
     const oldestSignature = signatures[signatures.length - 1].signature;
-    const oldestDate = new Date(
-      signatures[signatures.length - 1].blockTime! * 1000,
-    ).toDateString();
+    const oldestBlocktime = signatures[signatures.length - 1].blockTime!;
+    this._oldestTransactionDate = new Date(oldestBlocktime * 1000);
+    const oldestDate = this._oldestTransactionDate.toDateString();
     const elapsed = Math.round((Date.now() - this._startTime) / 1000);
+    this._db.setOldestSignature(
+      this._account,
+      oldestBlocktime,
+      oldestSignature,
+    );
     console.log(
       `${elapsed}s - ${
         newest ? `Newest transaction: ${newest}, ` : ""

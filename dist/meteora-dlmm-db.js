@@ -9,13 +9,19 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 import initSqlJs from "sql.js";
 import MeteoraDlmmStream from "./meteora-dlmm-downloader";
+const isBrowser = new Function("try {return this===window;}catch(e){ return false;}");
 let SQL;
 function initSql() {
     return __awaiter(this, void 0, void 0, function* () {
         if (SQL) {
             return SQL;
         }
-        return initSqlJs();
+        SQL = isBrowser()
+            ? yield initSqlJs({
+                locateFile: (file) => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.11.0/${file}`,
+            })
+            : yield initSqlJs();
+        return SQL;
     });
 }
 export default class MeteoraDlmmDb {
@@ -27,6 +33,14 @@ export default class MeteoraDlmmDb {
             const db = new MeteoraDlmmDb();
             yield db._init(data);
             return db;
+        });
+    }
+    static load() {
+        return __awaiter(this, void 0, void 0, function* () {
+            const { readData } = isBrowser()
+                ? yield import("./browser-save")
+                : yield import("./node-save");
+            return readData();
         });
     }
     _init(data) {
@@ -146,6 +160,9 @@ export default class MeteoraDlmmDb {
       ------------------------
       CREATE TABLE IF NOT EXISTS completed_accounts (
         account_address TEXT NOT NULL,
+        completed INTEGER DEFAULT (0) NOT NULL, 
+        oldest_block_time INTEGER, 
+        oldest_signature TEXT,
         CONSTRAINT completed_accounts_account_address PRIMARY KEY (account_address)
       );
 
@@ -918,10 +935,22 @@ export default class MeteoraDlmmDb {
           AND t.position_address = $position_address
       )   
     `);
+        this._setOldestSignature = this._db.prepare(`
+      INSERT INTO completed_accounts (account_address, oldest_block_time, oldest_signature)
+      VALUES ($account_address, $oldest_block_time, $oldest_signature)
+      ON CONFLICT DO UPDATE
+      SET 
+      	account_address = $account_address,
+      	oldest_block_time = $oldest_block_time,
+        oldest_signature = $oldest_signature
+    `);
         this._markCompleteStatement = this._db.prepare(`
-      INSERT INTO completed_accounts (account_address)
-      VALUES ($account_address)
-      ON CONFLICT DO NOTHING
+      INSERT INTO completed_accounts (account_address, completed)
+      VALUES ($account_address, 1)
+      ON CONFLICT DO UPDATE
+      SET 
+      	account_address = $account_address,
+      	completed = 1
     `);
     }
     _addInitialData() {
@@ -1055,6 +1084,13 @@ export default class MeteoraDlmmDb {
             $position_address: position_address,
         });
     }
+    setOldestSignature($account_address, $oldest_block_time, $oldest_signature) {
+        this._setOldestSignature.run({
+            $account_address,
+            $oldest_block_time,
+            $oldest_signature,
+        });
+    }
     markComplete($account_address) {
         this._markCompleteStatement.run({ $account_address });
     }
@@ -1067,6 +1103,7 @@ export default class MeteoraDlmmDb {
         completed_accounts
       WHERE
         account_address = '${account_address}'
+        AND completed
     `)
             .map((result) => result.values)
             .flat()
@@ -1151,15 +1188,28 @@ export default class MeteoraDlmmDb {
     getOldestSignature(owner_address) {
         const signature = this._db
             .exec(`
-        SELECT 
-          signature
-        FROM
-          instructions i 
-        WHERE
-          owner_address = '${owner_address}'
-        ORDER BY
-          block_time
-        LIMIT 1        
+          WITH signatures AS (
+            SELECT 
+              block_time, signature
+            FROM
+              instructions
+            WHERE
+              owner_address = '${owner_address}'
+            UNION
+            SELECT
+              oldest_block_time, oldest_signature
+            FROM
+              completed_accounts
+            WHERE
+              account_address = '${owner_address}'
+          )
+          SELECT
+            signature
+          FROM
+            signatures
+          ORDER BY
+            block_time 
+          LIMIT 1    
       `)
             .map((result) => result.values)
             .flat()
@@ -1181,8 +1231,16 @@ export default class MeteoraDlmmDb {
         statement.reset();
         return output;
     }
-    export() {
-        return this._db.export();
+    save() {
+        return __awaiter(this, void 0, void 0, function* () {
+            const data = this._db.export();
+            this._db.close();
+            yield this._init(data);
+            const { writeData } = isBrowser()
+                ? yield import("./browser-save")
+                : yield import("./node-save");
+            yield writeData(data);
+        });
     }
 }
 //# sourceMappingURL=meteora-dlmm-db.js.map

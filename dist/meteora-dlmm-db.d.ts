@@ -11,10 +11,12 @@ export default class MeteoraDlmmDb {
     private _addUsdYStatement;
     private _addUsdXStatement;
     private _fillMissingUsdStatement;
+    private _setOldestSignature;
     private _markCompleteStatement;
     private _downloaders;
     private constructor();
     static create(data?: ArrayLike<number> | Buffer | null): Promise<MeteoraDlmmDb>;
+    static load(): Promise<MeteoraDlmmDb>;
     private _init;
     private _createTables;
     private _createStatements;
@@ -24,6 +26,7 @@ export default class MeteoraDlmmDb {
     addPair(pair: MeteoraDlmmPairData): void;
     addToken(token: TokenMeta): void;
     addUsdTransactions(position_address: string, transactions: MeteoraPositionTransactions): void;
+    setOldestSignature($account_address: string, $oldest_block_time: number, $oldest_signature: string): void;
     markComplete($account_address: string): void;
     isComplete(account_address: string): boolean;
     download(endpoint: string, account: string, callbacks?: {
@@ -36,5 +39,5 @@ export default class MeteoraDlmmDb {
     getOldestSignature(owner_address: string): string | undefined;
     cancelDownload(account: string): void;
     private _getAll;
-    export(): Uint8Array;
+    save(): Promise<void>;
 }
