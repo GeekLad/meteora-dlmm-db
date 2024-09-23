@@ -1,8 +1,13 @@
 {
   "name": "@geeklad/meteora-dlmm-db",
   "version": "0.0.0",
+  "main": "dist/index.js",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "/dist",
+    "/src"
+  ],
   "scripts": {
     "build": "bun run build/build-cache.ts && tsc"
   },

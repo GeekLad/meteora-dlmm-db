@@ -1241,7 +1241,7 @@ export default class MeteoraDlmmDb {
     return signature[0] as string;
   }
 
-  cancelStream(account: string) {
+  cancelDownload(account: string) {
     this._downloaders.get(account)?.cancel();
     this._downloaders.delete(account);
   }

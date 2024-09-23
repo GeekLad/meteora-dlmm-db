@@ -1169,7 +1169,7 @@ export default class MeteoraDlmmDb {
         }
         return signature[0];
     }
-    cancelStream(account) {
+    cancelDownload(account) {
         var _a;
         (_a = this._downloaders.get(account)) === null || _a === void 0 ? void 0 : _a.cancel();
         this._downloaders.delete(account);
