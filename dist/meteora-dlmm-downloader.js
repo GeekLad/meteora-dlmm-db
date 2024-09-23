@@ -191,10 +191,15 @@ export default class MeteoraDownloaderStream {
         });
     }
     _finish() {
-        if (this._onDone && this.downloadComplete && !this._cancelled) {
-            this._db.markComplete(this._account);
-            this._onDone();
-        }
+        return __awaiter(this, void 0, void 0, function* () {
+            if (this.downloadComplete && !this._cancelled) {
+                this._db.markComplete(this._account);
+                yield this._db.save();
+                if (this._onDone) {
+                    this._onDone();
+                }
+            }
+        });
     }
     cancel() {
         this._cancelled = true;

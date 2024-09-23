@@ -228,10 +228,13 @@ export default class MeteoraDownloaderStream {
     this._finish();
   }
 
-  private _finish() {
-    if (this._onDone && this.downloadComplete && !this._cancelled) {
+  private async _finish() {
+    if (this.downloadComplete && !this._cancelled) {
       this._db.markComplete(this._account);
-      this._onDone();
+      await this._db.save();
+      if (this._onDone) {
+        this._onDone();
+      }
     }
   }
 
