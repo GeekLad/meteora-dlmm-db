@@ -14,7 +14,8 @@ let table;
 function init() {
     return __awaiter(this, void 0, void 0, function* () {
         if (!Dexie) {
-            Dexie = yield import("dexie");
+            const dexie = yield import("dexie");
+            Dexie = dexie.Dexie;
         }
         if (!db) {
             db = new Dexie("meteora-dlmm-db");

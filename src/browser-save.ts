@@ -6,7 +6,8 @@ let table: any;
 
 async function init() {
   if (!Dexie) {
-    Dexie = await import("dexie");
+    const dexie = await import("dexie");
+    Dexie = dexie.Dexie;
   }
   if (!db) {
     db = new Dexie("meteora-dlmm-db");
