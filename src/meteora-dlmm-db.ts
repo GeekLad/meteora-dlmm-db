@@ -1301,9 +1301,10 @@ export default class MeteoraDlmmDb {
     return signature[0] as string;
   }
 
-  cancelDownload(account: string) {
+  async cancelDownload(account: string) {
     this._downloaders.get(account)?.cancel();
     this._downloaders.delete(account);
+    await this.save();
   }
 
   private _getAll<Output>(statement: Statement): Output[] {

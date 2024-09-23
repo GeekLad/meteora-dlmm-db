@@ -37,7 +37,7 @@ export default class MeteoraDlmmDb {
     getMissingUsd(): string[];
     getMostRecentSignature(owner_address: string): string | undefined;
     getOldestSignature(owner_address: string): string | undefined;
-    cancelDownload(account: string): void;
+    cancelDownload(account: string): Promise<void>;
     private _getAll;
     save(): Promise<void>;
 }

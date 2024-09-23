@@ -1220,9 +1220,12 @@ export default class MeteoraDlmmDb {
         return signature[0];
     }
     cancelDownload(account) {
-        var _a;
-        (_a = this._downloaders.get(account)) === null || _a === void 0 ? void 0 : _a.cancel();
-        this._downloaders.delete(account);
+        return __awaiter(this, void 0, void 0, function* () {
+            var _a;
+            (_a = this._downloaders.get(account)) === null || _a === void 0 ? void 0 : _a.cancel();
+            this._downloaders.delete(account);
+            yield this.save();
+        });
     }
     _getAll(statement) {
         const output = [];
