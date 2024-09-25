@@ -6,7 +6,6 @@ import {
 } from "./meteora-dlmm-api";
 import { type TokenMeta } from "./jupiter-token-list-api";
 import MeteoraDlmmStream from "./meteora-dlmm-downloader";
-import { write } from "bun";
 
 const isBrowser = new Function(
   "try {return this===window;}catch(e){ return false;}",
@@ -127,6 +126,7 @@ export default class MeteoraDlmmDb {
         position_address, 
         mint
       );
+      CREATE INDEX IF NOT EXISTS token_transfers_position_address ON token_transfers (position_address);
 
       ----------------
       -- DLMM Pairs --
@@ -199,565 +199,324 @@ export default class MeteoraDlmmDb {
       ---------------
 
       ------------------
-      -- Instructions --
-      ------------------
-      CREATE VIEW IF NOT EXISTS v_instructions AS
-      WITH non_null_bins AS (
-        SELECT DISTINCT
-          block_time,
-          pair_address,
-          active_bin_id,
-          LAG(active_bin_id) OVER (PARTITION BY pair_address ORDER BY block_time) AS prev_non_null_bin,
-          LEAD(active_bin_id) OVER (PARTITION BY pair_address ORDER BY block_time) AS next_non_null_bin,
-          LAG(block_time) OVER (PARTITION BY pair_address ORDER BY block_time) AS prev_non_null_time,
-          LEAD(block_time) OVER (PARTITION BY pair_address ORDER BY block_time) AS next_non_null_time
-        FROM 
-          instructions
-        WHERE 
-          active_bin_id IS NOT NULL
-      ),
-      instructions_with_prev_next_bins AS (
-        SELECT 
-          signature,
-          slot,
-          block_time,
-          instruction_name,
-          instruction_type,
-          position_address,
-          pair_address,
-          owner_address,
-          COALESCE (
-            active_bin_id,
-            (SELECT active_bin_id FROM non_null_bins nnb WHERE nnb.pair_address = i.pair_address AND nnb.block_time = i.block_time LIMIT 1)
-          ) active_bin_id,
-          removal_bps,
-          (SELECT prev_non_null_time FROM non_null_bins nnb WHERE nnb.pair_address = i.pair_address AND nnb.block_time <= i.block_time ORDER BY nnb.block_time DESC LIMIT 1) prev_non_null_time,
-          (SELECT next_non_null_time FROM non_null_bins nnb WHERE nnb.pair_address = i.pair_address AND nnb.block_time >= i.block_time ORDER BY nnb.block_time ASC LIMIT 1) next_non_null_time,
-          (SELECT prev_non_null_bin FROM non_null_bins nnb WHERE nnb.pair_address = i.pair_address AND nnb.block_time <= i.block_time ORDER BY nnb.block_time DESC LIMIT 1) prev_non_null_bin,
-          (SELECT next_non_null_bin FROM non_null_bins nnb WHERE nnb.pair_address = i.pair_address AND nnb.block_time >= i.block_time ORDER BY nnb.block_time ASC LIMIT 1) next_non_null_bin
-        FROM 
-          instructions i
-      )
-      SELECT 
-        b.signature,
-        b.slot,
-        b.block_time,
-        b.instruction_name,
-        b.instruction_type,
-        b.position_address,
-        b.pair_address,
-        b.owner_address,
-        COALESCE(
-          b.active_bin_id,
-          CASE 
-            WHEN b.prev_non_null_time IS NOT NULL AND b.next_non_null_time IS NOT NULL 
-            THEN
-              CASE 
-                WHEN ABS(b.block_time - prev_non_null_time) <= ABS(b.block_time - next_non_null_time) THEN prev_non_null_bin
-                ELSE next_non_null_bin
-              END
-            WHEN b.prev_non_null_time IS NOT NULL THEN prev_non_null_bin
-            ELSE next_non_null_bin
-          END
-        ) active_bin_id,
-        removal_bps
-      FROM 
-        instructions_with_prev_next_bins b
-        join instruction_types i ON
-          b.instruction_type = i.instruction_type
-      ORDER BY
-        block_time,
-        position_address,
-        i.priority;
-
-      ---------------
-      -- Positions --
-      ---------------
-      CREATE VIEW IF NOT EXISTS v_positions AS
-      SELECT
-        DISTINCT
-        i.position_address,
-        i.pair_address,
-        i.owner_address,
-        MIN(DATETIME(i.block_time, 'unixepoch')) OVER (PARTITION BY i.position_address RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) open_block_date_time,
-        MAX(DATETIME(i.block_time, 'unixepoch')) FILTER(WHERE i.instruction_type = 'close') OVER (PARTITION BY i.position_address RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) close_block_date_time,
-        MAX(i.block_time) FILTER(WHERE i.instruction_type = 'close') OVER (PARTITION BY i.position_address RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) IS NULL position_is_open,
-        MAX(i.block_time) FILTER(WHERE i.instruction_type = 'open') OVER (PARTITION BY i.position_address RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) IS NOT NULL all_data_received,
-        p.name,
-        p.bin_step,
-        p.base_fee_bps / 10 base_fee_bps,
-        p.mint_x,
-        x.symbol AS x_symbol,
-        x.decimals AS x_decimals,
-        p.mint_y,
-        y.symbol AS y_symbol,
-        y.decimals AS y_decimals,
-        CASE
-          WHEN (SELECT q.priority FROM quote_tokens q WHERE q.mint = p.mint_x) IS NULL 
-          THEN FALSE
-          WHEN
-            (SELECT q.priority FROM quote_tokens q WHERE q.mint = p.mint_x) IS NOT NULL
-            AND (SELECT q.priority FROM quote_tokens q WHERE q.mint = p.mint_y) IS NULL
-          THEN TRUE
-          WHEN
-            (SELECT q.priority FROM quote_tokens q WHERE q.mint = p.mint_x) < (SELECT q.priority FROM quote_tokens q WHERE q.mint = p.mint_y)
-          THEN TRUE
-          ELSE FALSE
-        END is_inverted
-      FROM
-        instructions i
-      JOIN dlmm_pairs p ON
-          i.pair_address = p.pair_address
-      JOIN tokens x ON
-          p.mint_x = x.address
-      JOIN tokens y ON
-          p.mint_y = y.address;
-
-      ----------------------
-      -- Raw Transactions --
-      ----------------------
-      CREATE VIEW IF NOT EXISTS v_raw_transactions AS
-      WITH raw_transactions AS (
-        SELECT
-          ROW_NUMBER() OVER (ORDER BY i.position_address, i.block_time, it.priority) row_id,
-          i.block_time,
-          DATETIME(i.block_time, 'unixepoch') block_date_time,
-          p.position_is_open,
-          i.signature,
-          i.pair_address,
-          i.position_address,
-          i.active_bin_id,
-          p.name,
-          p.bin_step,
-          p.base_fee_bps,
-          p.is_inverted,
-          i.instruction_name,
-          i.instruction_type,
-          it.priority instruction_priority,
-          POWER(1.0 + 1.0 * p.bin_step / 10000, i.active_bin_id) * POWER(10, p.x_decimals - p.y_decimals) price,
-          i.removal_bps,
-          COUNT(CASE WHEN i.instruction_type = 'remove' THEN 1 END) OVER (PARTITION BY i.position_address ORDER BY i.block_time)-(i.instruction_type = 'remove') position_section,
-          p.mint_x,
-          p.x_symbol,
-          p.x_decimals,
-          COALESCE(x.amount, 0) x_amount,
-          x.usd_load_attempted x_usd_load_attempted,
-          x.usd_amount x_usd_amount,
-          0.0 x_balance,
-          0.0 x_usd_balance,
-          p.mint_y,
-          p.y_symbol,
-          p.y_decimals,
-          COALESCE(y.amount, 0) y_amount,
-          y.usd_load_attempted y_usd_load_attempted,
-          y.usd_amount y_usd_amount,
-          0.0 y_balance,
-          0.0 y_usd_balance
-        FROM
-          v_positions p
-          JOIN v_instructions i ON 
-            p.position_address = i.position_address 
-            AND p.pair_address = i.pair_address
-          JOIN instruction_types it  ON
-            i.instruction_type = it.instruction_type
-          LEFT JOIN token_transfers x ON
-            i.signature = x.signature 
-            AND i.instruction_name = x.instruction_name 
-            AND i.position_address = x.position_address
-            AND p.mint_x = x.mint
-          LEFT JOIN token_transfers y ON
-            i.signature = y.signature 
-            AND i.instruction_name = y.instruction_name 
-            AND i.position_address = y.position_address
-            AND p.mint_y = y.mint
-        WHERE 
-        	all_data_received
-      ),
-      balances AS (
-        SELECT * FROM raw_transactions WHERE row_id = 1
-        UNION ALL
-        SELECT 
-          rt.row_id,
-          rt.block_time, 
-          rt.block_date_time,
-          rt.position_is_open,
-          rt.signature, 
-          rt.pair_address, 
-          rt.position_address, 
-          rt.active_bin_id, 
-          rt.name, 
-          rt.bin_step, 
-          rt.base_fee_bps, 
-          rt.is_inverted, 
-          rt.instruction_name, 
-          rt.instruction_type, 
-          rt.instruction_priority,
-          rt.price, 
-          rt.removal_bps, 
-          rt.position_section,
-          rt.mint_x, 
-          rt.x_symbol, 
-          rt.x_decimals, 
-          rt.x_amount, 
-          rt.x_usd_load_attempted,
-          rt.x_usd_amount,
-          CASE 
-            -- Reset the balance if we have a different position
-            WHEN rt.position_address != r.position_address THEN 0
-            -- Add the current amount to the prior balance
-            WHEN rt.instruction_type = 'add' THEN rt.x_amount + r.x_balance
-            WHEN rt.instruction_type = 'remove' THEN
-              CASE
-                -- If we removed 100%, we have nothing left
-                WHEN rt.removal_bps = 10000 THEN 0
-                -- Back into the new balance based on the removal BPS and removal amount
-                ELSE (rt.x_amount / (1.0 * rt.removal_bps / 10000)) - rt.x_amount
-              END
-            -- Repeat the prior balance for claims & close, open we'll reset to 0
-            ELSE r.x_balance
-          END x_balance,
-          CASE 
-            -- Reset the balance if we have a different position
-            WHEN rt.position_address != r.position_address THEN 0
-            -- Add the current amount to the prior balance
-            WHEN rt.instruction_type = 'add' THEN rt.x_usd_amount + r.x_usd_balance
-            WHEN rt.instruction_type = 'remove' THEN
-              CASE
-                -- If we removed 100%, we have nothing left
-                WHEN rt.removal_bps = 10000 THEN 0
-                -- Back into the new balance based on the removal BPS and removal amount
-                ELSE (rt.x_usd_amount / (1.0 * rt.removal_bps / 10000)) - rt.x_usd_amount
-              END
-            -- Repeat the prior balance for claims & close, open we'll reset to 0
-            ELSE r.x_usd_balance
-          END x_usd_balance,
-          rt.mint_y, 
-          rt.y_symbol, 
-          rt.y_decimals, 
-          rt.y_amount,
-          rt.y_usd_load_attempted,
-          rt.y_usd_amount,
-          CASE 
-            WHEN rt.position_address != r.position_address THEN 0
-            WHEN rt.instruction_type = 'add' THEN rt.y_amount + r.y_balance
-            WHEN rt.instruction_type = 'remove' THEN
-              CASE
-                WHEN rt.removal_bps = 10000 THEN 0
-                ELSE (rt.y_amount / (1.0 * rt.removal_bps / 10000)) - rt.y_amount
-              END
-            ELSE r.y_balance
-          END y_balance,
-          CASE 
-            -- Reset the balance if we have a different position
-            WHEN rt.position_address != r.position_address THEN 0
-            -- Add the current amount to the prior balance
-            WHEN rt.instruction_type = 'add' THEN rt.y_usd_amount + r.y_usd_balance
-            WHEN rt.instruction_type = 'remove' THEN
-              CASE
-                -- If we removed 100%, we have nothing left
-                WHEN rt.removal_bps = 10000 THEN 0
-                -- Back into the new balance based on the removal BPS and removal amount
-                ELSE (rt.y_usd_amount / (1.0 * rt.removal_bps / 10000)) - rt.y_usd_amount
-              END
-            -- Repeat the prior balance for claims & close, open we'll reset to 0
-            ELSE r.y_usd_balance
-          END y_usd_balance
-        FROM raw_transactions rt
-        JOIN balances r ON rt.row_id = r.row_id + 1
-      )
-      SELECT
-          block_time, 
-          block_date_time,
-          position_is_open,
-          signature, 
-          pair_address, 
-          position_address, 
-          active_bin_id, 
-          name, 
-          bin_step, 
-          base_fee_bps, 
-          is_inverted,
-          instruction_name, 
-          instruction_type, 
-          price, 
-          removal_bps, 
-          position_section,
-          mint_x, 
-          x_symbol, 
-          x_decimals, 
-          x_amount, 
-          x_usd_load_attempted,
-          x_usd_amount,
-          x_balance,
-          x_usd_balance,
-          mint_y, 
-          y_symbol, 
-          y_decimals, 
-          y_amount,
-          y_usd_load_attempted,
-          y_usd_amount,
-          y_balance,
-          y_usd_balance
-      FROM
-        balances
-      ORDER BY 
-        block_time,
-        position_address,
-        instruction_priority;
-
-      ------------------
       -- Transactions --
       ------------------
-
       CREATE VIEW IF NOT EXISTS v_transactions AS
-      WITH transactions as (
+      WITH instructions_with_active_bin_id_groups AS (
         SELECT
-          block_time,
-          block_date_time,
-          position_is_open,
-          position_address,
-          signature,
-          pair_address,
-          CASE WHEN NOT is_inverted THEN name ELSE y_symbol||'-'||x_symbol END name,
-          bin_step,
-          base_fee_bps,
-          CASE WHEN NOT is_inverted THEN x_symbol ELSE y_symbol END base,
-          CASE WHEN NOT is_inverted THEN mint_x ELSE mint_y END base_mint,
-          CASE WHEN NOT is_inverted THEN y_symbol ELSE x_symbol END quote,
-          CASE WHEN NOT is_inverted THEN mint_y ELSE mint_x END quote_mint,
-          instruction_type,
-          CASE WHEN NOT is_inverted THEN price ELSE 1/price END price,
-          CASE WHEN NOT is_inverted THEN y_decimals ELSE x_decimals END quote_decimals,
-          COALESCE (removal_bps / 10000.0, 0) removal_pct,
-          COALESCE (
-            CASE
-              WHEN NOT is_inverted
-              THEN x_amount * price + y_amount
-              ELSE x_amount + y_amount / price
-            END,
-            0
-          ) amount,
-          COALESCE (x_usd_amount, 0) + COALESCE (y_usd_amount, 0) usd_amount,
-          COALESCE (
-            CASE
-              WHEN NOT is_inverted
-              THEN x_balance * price + y_balance
-              ELSE x_balance + y_balance / price
-            END,
-            0
-          ) balance,
-          COALESCE (x_usd_balance, 0) + COALESCE (y_usd_balance, 0) usd_balance          
-        FROM 
-          v_raw_transactions
+          i.block_time,
+          i.signature,
+          i.instruction_type,
+          i.position_address,
+          i.owner_address,
+          p.pair_address,
+          p.bin_step,
+          x.decimals x_decimals,
+          y.decimals y_decimals,
+          i.active_bin_id,
+          SUM(CASE WHEN i.active_bin_id IS NOT NULL THEN 1 ELSE 0 END) OVER (PARTITION BY p.pair_address ORDER BY i.block_time) prev_group_id,
+          SUM(CASE WHEN i.active_bin_id IS NOT NULL THEN 1 ELSE 0 END) OVER (PARTITION BY p.pair_address ORDER BY i.block_time DESC) next_group_id,
+          COALESCE(i.removal_bps, 0) removal_bps,
+          MAX(CASE WHEN i.instruction_type = 'close' THEN 1 END) OVER (PARTITION BY i.position_address RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) IS NULL position_is_open,
+          COALESCE(ttx.amount, 0) x_amount,
+          COALESCE(tty.amount, 0) y_amount,
+          COALESCE(ttx.usd_amount, 0) + COALESCE(tty.usd_amount, 0) usd_amount,
+          CASE
+            WHEN (SELECT q.priority FROM quote_tokens q WHERE q.mint = p.mint_x) IS NULL 
+            THEN FALSE
+            WHEN
+              (SELECT q.priority FROM quote_tokens q WHERE q.mint = p.mint_x) IS NOT NULL
+              AND (SELECT q.priority FROM quote_tokens q WHERE q.mint = p.mint_y) IS NULL
+            THEN TRUE
+            WHEN
+              (SELECT q.priority FROM quote_tokens q WHERE q.mint = p.mint_x) < (SELECT q.priority FROM quote_tokens q WHERE q.mint = p.mint_y)
+            THEN TRUE
+            ELSE FALSE
+          END is_inverted		
+        FROM
+          instructions i
+          JOIN instruction_types it ON
+            i.instruction_type = it.instruction_type 
+          JOIN dlmm_pairs p ON
+            p.pair_address = i.pair_address 
+          JOIN tokens x ON
+            p.mint_x = x.address
+          JOIN tokens y ON
+            p.mint_y = y.address
+          LEFT JOIN token_transfers ttx ON
+            ttx.signature = i.signature
+            AND ttx.position_address = i.position_address
+            AND ttx.instruction_name = i.instruction_name 
+            AND ttx.mint = x.address
+          LEFT JOIN token_transfers tty ON
+            tty.signature = i.signature
+            AND tty.position_address = i.position_address
+            AND tty.instruction_name = i.instruction_name 
+            AND tty.mint = y.address
+        ORDER BY
+            p.pair_address, i.block_time
       ),
-      grouped_transactions AS (
+      instructions_with_contiguous_active_bin_ids AS (
+        SELECT
+          block_time - MIN(block_time) FILTER (WHERE active_bin_id IS NOT NULL) OVER (PARTITION BY pair_address, prev_group_id ORDER BY block_time) prev_block_time_diff,
+          MAX(active_bin_id) FILTER (WHERE active_bin_id IS NOT NULL) OVER (PARTITION BY pair_address, prev_group_id ORDER BY block_time) prev_active_bin_id,
+          MIN(block_time) FILTER (WHERE active_bin_id IS NOT NULL) OVER (PARTITION BY pair_address, next_group_id ORDER BY block_time DESC) - block_time next_block_time_diff,
+          MIN(active_bin_id) FILTER (WHERE active_bin_id IS NOT NULL) OVER (PARTITION BY pair_address, next_group_id ORDER BY block_time DESC) next_active_bin_id,
+          *
+        FROM
+          instructions_with_active_bin_id_groups
+      ),
+      backfilled_active_bin_ids AS (
         SELECT
           block_time,
-          block_date_time,
-          position_is_open,
           signature,
+          instruction_type,
           position_address,
+          owner_address,
           pair_address,
-          name,
           bin_step,
-          base_fee_bps,
-          base,
-          base_mint,
-          quote,
-          quote_mint,
-          price,
-          quote_decimals,
-          MAX(removal_pct) removal_pct,
-          SUM(CASE WHEN instruction_type = 'claim' THEN amount else 0 END) fees_claimed,
-          SUM(CASE WHEN instruction_type = 'claim' THEN usd_amount else 0 END) usd_fees_claimed,
-          CASE 
-            WHEN COUNT(CASE WHEN instruction_type = 'add' THEN 1 END) > 0 THEN MAX(balance)
-            ELSE MIN(balance)
-          END balance,
-          CASE 
-            WHEN COUNT(CASE WHEN instruction_type = 'add' THEN 1 END) > 0 THEN MAX(usd_balance)
-            ELSE MIN(usd_balance)
-          END usd_balance,
-          SUM(
-            CASE
-              WHEN instruction_type = 'add' THEN amount
-              ELSE 0
-            END
-          ) deposits,
-          SUM(
-            CASE
-              WHEN instruction_type = 'add' THEN usd_amount
-              ELSE 0
-            END
-          ) usd_deposits,
-          SUM(
-            CASE
-              WHEN instruction_type = 'remove' THEN amount
-              ELSE 0
-            END
-          ) withdrawals,
-          SUM(
-            CASE
-              WHEN instruction_type = 'remove' THEN usd_amount
-              ELSE 0
-            END
-          ) usd_withdrawals,
-          SUM(
-            CASE
-              WHEN instruction_type = 'add' THEN amount
-              WHEN instruction_type = 'remove' THEN -amount
-              ELSE 0
-            END
-          ) balance_change,
-          SUM(
-            CASE
-              WHEN instruction_type = 'add' THEN usd_amount
-              WHEN instruction_type = 'remove' THEN -usd_amount
-              ELSE 0
-            END
-          ) usd_balance_change          
-        FROM 
-          transactions
-        GROUP BY
+          x_decimals,
+          y_decimals,
+          is_inverted,
+          COALESCE (
+            active_bin_id,
+            CASE 
+              WHEN prev_block_time_diff IS NOT NULL and next_block_time_diff IS NOT NULL THEN
+                CASE 
+                  WHEN prev_block_time_diff <= next_block_time_diff THEN prev_active_bin_id
+                  ELSE next_active_bin_id
+                END
+              ELSE COALESCE (prev_active_bin_id, next_active_bin_id)
+            END			
+          ) active_bin_id,
+          removal_bps,
+          position_is_open,
+          x_amount,
+          y_amount,
+          usd_amount
+        FROM
+            instructions_with_contiguous_active_bin_ids
+      ),
+      prices AS (
+        SELECT
           block_time,
-          block_date_time,
-          position_is_open,
           signature,
-          pair_address,
+          instruction_type,
           position_address,
-          name,
-          bin_step,
-          base_fee_bps,
-          base,
-          base_mint,
-          quote,
-          quote_mint,
+          owner_address,
+          pair_address,
+          is_inverted,
+          removal_bps,
+          position_is_open,
+          CASE 
+            WHEN NOT is_inverted THEN POWER(1.0 + 1.0 * bin_step / 10000, active_bin_id) * POWER(10, x_decimals - y_decimals)
+            ELSE 1 / (POWER(1.0 + 1.0 * bin_step / 10000, active_bin_id) * POWER(10, x_decimals - y_decimals))
+          END price,
+          CASE
+            WHEN NOT is_inverted THEN x_amount
+            ELSE y_amount
+          END base_amount,
+          CASE
+            WHEN NOT is_inverted THEN y_amount
+            ELSE x_amount
+          END quote_amount,
+          usd_amount
+        FROM
+          backfilled_active_bin_ids
+      ),
+      instructions_with_base_quote as (
+        SELECT
+          block_time,
+          signature,
+          instruction_type,
+          position_address,
+          owner_address,
+          pair_address,
+          is_inverted,
+          removal_bps,
+          position_is_open,
           price,
-          quote_decimals
+          price * base_amount + quote_amount amount,
+          usd_amount
+        FROM
+          prices
+      ),
+      transactions AS (
+	      SELECT
+	          block_time,
+	          signature,
+	          position_address,
+	          owner_address,
+	          pair_address,
+	          MAX(removal_bps) removal_bps,
+	          MAX(position_is_open) position_is_open,
+	          price,
+	          COALESCE(
+	            SUM(
+	              CASE 
+	                WHEN instruction_type = 'claim' THEN price * base_amount + quote_amount 
+	                ELSE 0 
+	              END
+	            ),
+	            0
+	          ) fee_amount,
+	          COALESCE(
+	            SUM(
+	              CASE 
+	                WHEN instruction_type = 'add' THEN price * base_amount + quote_amount
+	                ELSE 0
+	              END
+	            ),
+	            0
+	          ) deposit,
+	          COALESCE(
+	            SUM(
+	              CASE 
+	                WHEN instruction_type = 'remove' THEN price * base_amount + quote_amount
+	                ELSE 0
+	              END
+	            ),
+	            0
+	          ) withdrawal,
+	          COALESCE(
+	            SUM(
+	              CASE 
+	                WHEN instruction_type = 'claim' THEN usd_amount 
+	                ELSE 0 
+	              END
+	            ),
+	            0
+	          ) usd_fee_amount,
+	          COALESCE(
+	            SUM(
+	              CASE 
+	                WHEN instruction_type = 'add' THEN usd_amount		
+	              END
+	            ),
+	            0
+	          ) usd_deposit,
+	          COALESCE(
+	            SUM(
+	              CASE 
+	                WHEN instruction_type = 'remove' THEN usd_amount
+	              END
+	            ),
+	            0
+	          ) usd_withdrawal          
+	      FROM
+	        prices
+	      GROUP BY
+	        block_time,
+	        signature,
+	        position_address,
+	        owner_address,
+	        pair_address
+      ),
+      balance_change_groups AS (
+	      SELECT 
+	      	*,
+	        SUM(CASE WHEN removal_bps > 0 THEN 1 ELSE 0 END) OVER (PARTITION BY position_address ORDER BY block_time) position_group_id
+	    	FROM 
+	    		transactions
+      ),
+      balances AS (
+	      SELECT
+	      	block_time,
+	      	signature,
+	      	position_address,
+	      	owner_address,
+	      	pair_address,
+	      	removal_bps,
+	        position_is_open,
+	      	price,
+	        MAX(block_time) OVER (PARTITION BY position_address ORDER BY block_time)
+	        -MIN(block_time) OVER (PARTITION BY position_address ORDER BY block_time) position_seconds,	      	
+	        CASE 
+	 					WHEN removal_bps = 10000 THEN 0
+	 					ELSE COALESCE(LEAD(block_time) OVER (PARTITION BY position_address ORDER BY block_time)-block_time, 0)
+	        END position_balance_seconds,
+	      	fee_amount,
+	      	deposit,
+	      	withdrawal,
+	      	CASE
+	      		WHEN removal_bps = 0 THEN
+		  	    	SUM(
+			      		CASE 
+				      		WHEN deposit >= 0 THEN deposit 
+				      		ELSE 0
+			    			END
+			    		) OVER (
+			    			PARTITION BY position_address, position_group_id ORDER BY block_time
+			    		)
+			    	WHEN removal_bps = 10000 THEN 0
+			    	ELSE withdrawal * (1.0 * 10000 / removal_bps - 1)
+	      	END position_balance,
+	      	usd_fee_amount,
+	      	usd_deposit,
+	      	usd_withdrawal,
+	      	CASE
+	      		WHEN removal_bps = 0 THEN
+		  	    	SUM(
+			      		CASE 
+				      		WHEN usd_deposit > 0 THEN usd_deposit 
+				      		ELSE 0
+			    			END
+			    		) OVER (
+			    			PARTITION BY position_address, position_group_id ORDER BY block_time
+			    		)
+			    	WHEN removal_bps = 10000 THEN 0
+			    	ELSE usd_withdrawal * (1.0 * removal_bps / 10000 - 1)
+	      	END usd_position_balance
+	      FROM
+	      	balance_change_groups
+	    	ORDER BY
+	    		position_address, block_time
       ),
       pnl AS (
 	      SELECT
-					t.block_time,
-					t.block_date_time,
-          t.position_is_open,
-					t.signature,
-					t.position_address,
-					t.pair_address,
-					t.name,
-					t.bin_step,
-					t.base_fee_bps,
-					t.base,
-					t.base_mint,
-					t.quote,
-					t.quote_mint,
-					t.price,
-					t.quote_decimals,
-					t.removal_pct,
-					t.fees_claimed,
-					t.usd_fees_claimed,
-					t.balance,
-					t.usd_balance,
-	        SUM(deposits) OVER (PARTITION BY position_address ORDER BY block_time) deposits,
-	        SUM(usd_deposits) OVER (PARTITION BY position_address ORDER BY block_time) usd_deposits,
-	        SUM(withdrawals) OVER (PARTITION BY position_address ORDER BY block_time) withdrawals,
-	        SUM(usd_withdrawals) OVER (PARTITION BY position_address ORDER BY block_time) usd_withdrawals,
-					t.balance_change,
-					t.usd_balance_change,
-	        ROW_NUMBER() OVER (PARTITION BY position_address ORDER BY block_time) position_tx_sequence,
-	        MAX(block_time) OVER (PARTITION BY position_address ORDER BY block_time)
-	        -MIN(block_time) OVER (PARTITION BY position_address ORDER BY block_time) position_seconds,
-	        CASE 
-	 					WHEN removal_pct = 1 THEN 0
-	 					ELSE COALESCE(LEAD(block_time) OVER (PARTITION BY position_address ORDER BY block_time)-block_time, 0)
-	        END current_balance_seconds,
-	        SUM(fees_claimed) OVER (PARTITION BY position_address ORDER BY block_time) net_fees_claimed,
-	        balance - SUM(balance_change) OVER (PARTITION BY position_address ORDER BY block_time) impermanent_loss,
-	        usd_balance - SUM(usd_balance_change) OVER (PARTITION BY position_address ORDER BY block_time) usd_impermanent_loss,
-	        balance + SUM(fees_claimed) OVER (PARTITION BY position_address ORDER BY block_time) - SUM(balance_change) OVER (PARTITION BY position_address ORDER BY block_time) pnl,
-	        usd_balance + SUM(usd_fees_claimed) OVER (PARTITION BY position_address ORDER BY block_time) - SUM(usd_balance_change) OVER (PARTITION BY position_address ORDER BY block_time) usd_pnl
-	      FROM
-	        grouped_transactions t      
-      )
-      SELECT
-      	p.*,
-      	(SUM(balance*current_balance_seconds) OVER (PARTITION BY position_address ORDER BY block_time))
-      	/ (SUM(current_balance_seconds) OVER (PARTITION BY position_address ORDER BY block_time)) average_balance,
-      	(SUM(usd_balance*current_balance_seconds) OVER (PARTITION BY position_address ORDER BY block_time))
-      	/ (SUM(current_balance_seconds) OVER (PARTITION BY position_address ORDER BY block_time)) usd_average_balance      	
-      FROM pnl p
-      ORDER BY
-        block_time,
-        position_address;
-
-      ------------------
-      -- Position P&L --
-      ------------------
-      CREATE VIEW IF NOT EXISTS v_position_pnl AS
-      WITH final_transactions AS (
-	      SELECT
-	        vt1.position_address,
-	        vt1.base,
-	        vt1.base_mint,
-	        vt1.quote,
-	        vt1.quote_mint,
-	        vt1.position_is_open,
-	        vt1.position_tx_sequence transaction_count,
-	        vt1.position_seconds,
-	        vt1.average_balance,
-	        vt1.usd_average_balance,
-	        vt1.net_fees_claimed,
-	        vt1.usd_fees_claimed,
-	        vt1.deposits,
-	        vt1.usd_deposits,
-	        vt1.withdrawals,
-	        vt1.usd_withdrawals,
-	        vt1.impermanent_loss,
-	        vt1.usd_impermanent_loss,
-	        vt1.pnl,
-	        vt1.usd_pnl,
-	        vt1.pnl / vt1.deposits deposits_pnl_percent,
-	        vt1.usd_pnl / vt1.usd_average_balance average_balance_pnl_percent
-	      FROM
-	        v_transactions vt1
-	      WHERE
-	        vt1.position_tx_sequence = (
-	          SELECT MAX(vt2.position_tx_sequence) 
-	          FROM v_transactions vt2
-	          WHERE vt2.position_address = vt1.position_address
-	        )
+	      	block_time,
+	      	signature,
+	      	position_address,
+	      	owner_address,
+	      	pair_address,
+	      	removal_bps,
+	        position_is_open,
+	      	price,
+	      	fee_amount,
+	      	deposit,
+	      	withdrawal,
+	        position_balance - SUM(deposit-withdrawal) OVER (PARTITION BY position_address ORDER BY block_time) cumulative_position_impermanent_loss,
+	        SUM(fee_amount) OVER (PARTITION BY position_address ORDER BY block_time) + position_balance - SUM(deposit-withdrawal) OVER (PARTITION BY position_address ORDER BY block_time) cumulative_pnl,
+	      	usd_fee_amount,
+	      	usd_deposit,
+	      	usd_withdrawal,
+	        usd_position_balance - SUM(usd_deposit-usd_withdrawal) OVER (PARTITION BY position_address ORDER BY block_time) usd_cumulative_position_impermanent_loss,
+	        SUM(usd_fee_amount) OVER (PARTITION BY position_address ORDER BY block_time) + usd_position_balance - SUM(usd_deposit-usd_withdrawal) OVER (PARTITION BY position_address ORDER BY block_time) usd_cumulative_pnl
+				FROM balances
       )
       SELECT 
-        vp.position_address,
-        vp.owner_address,
-        vp.pair_address,
-        vp.name,
-        vp.bin_step,
-        vp.base_fee_bps,
-        ft.base,
-        ft.base_mint,
-        ft.quote,
-        ft.quote_mint,
-        ft.position_is_open,
-        ft.transaction_count,
-        ft.position_seconds,
-        ft.average_balance,
-        ft.usd_average_balance,
-        ft.net_fees_claimed,
-        ft.usd_fees_claimed,
-        ft.deposits,
-        ft.usd_deposits,
-        ft.withdrawals,
-        ft.usd_withdrawals,
-        ft.impermanent_loss,
-        ft.usd_impermanent_loss,
-        ft.pnl,
-        ft.usd_pnl,
-        ft.deposits_pnl_percent,
-        ft.average_balance_pnl_percent
-      FROM
-        v_positions vp 
-        JOIN final_transactions ft on
-          vp.position_address  = ft.position_address;
+      	block_time,
+      	signature,
+      	position_address,
+      	owner_address,
+      	pair_address,
+      	removal_bps,
+        position_is_open,
+      	price,
+      	fee_amount,
+      	deposit,
+      	withdrawal,
+        cumulative_position_impermanent_loss - COALESCE(LAG(cumulative_position_impermanent_loss) OVER (PARTITION BY position_address ORDER BY block_time), 0) impermanent_loss,
+        cumulative_pnl - COALESCE(LAG(cumulative_pnl) OVER (PARTITION BY position_address ORDER BY block_time), 0) pnl,
+      	usd_fee_amount,
+      	usd_deposit,
+      	usd_withdrawal,
+        usd_cumulative_position_impermanent_loss - COALESCE(LAG(usd_cumulative_position_impermanent_loss) OVER (PARTITION BY position_address ORDER BY block_time), 0) usd_impermanent_loss,
+        usd_cumulative_pnl - COALESCE(LAG(usd_cumulative_pnl) OVER (PARTITION BY position_address ORDER BY block_time), 0) usd_pnl
+      FROM pnl
+			ORDER BY
+				block_time,
+				position_address;
 
       -------------------
       -- Missing Pairs --
@@ -799,6 +558,19 @@ export default class MeteoraDlmmDb {
         WHERE 
           y.address IS NULL
       );
+
+      -----------------
+      -- Missing USD --
+      -----------------
+      CREATE VIEW IF NOT EXISTS v_missing_usd AS
+      SELECT 
+        position_address
+      FROM
+        token_transfers
+      GROUP BY
+        position_address
+      HAVING
+        SUM(usd_load_attempted) <> COUNT(*);
     `);
   }
 
@@ -1222,17 +994,7 @@ export default class MeteoraDlmmDb {
 
   getMissingUsd(): string[] {
     return this._db
-      .exec(
-        `
-        SELECT 
-          DISTINCT position_address
-        FROM
-          v_raw_transactions
-        WHERE
-          COALESCE (x_amount, 0) + COALESCE (y_amount, 0) > 0
-          AND (NOT x_usd_load_attempted OR NOT y_usd_load_attempted)
-      `,
-      )
+      .exec(`SELECT * FROM v_missing_usd`)
       .map((result) => result.values)
       .flat()
       .flat() as string[];

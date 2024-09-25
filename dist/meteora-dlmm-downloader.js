@@ -7,6 +7,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+import { Connection, } from "@solana/web3.js";
 import { JupiterTokenListApi } from "./jupiter-token-list-api";
 import { MeteoraDlmmApi } from "./meteora-dlmm-api";
 import { parseMeteoraInstructions } from "./meteora-instruction-parser";
@@ -26,6 +27,7 @@ export default class MeteoraDownloaderStream {
             positionCount: this._positionAddresses.size,
             positionTransactionCount: this._positionTransactionIds.size,
             usdPositionCount: this._usdPositionAddresses.size,
+            oldestTransactionDate: this._oldestTransactionDate,
         };
     }
     constructor(db, endpoint, account, callbacks) {
@@ -40,23 +42,46 @@ export default class MeteoraDownloaderStream {
         this._usdPositionAddresses = new Set();
         this._isComplete = false;
         this._cancelled = false;
+        this._oldestSignature = "";
+        this._oldestBlocktime = 0;
         this._db = db;
-        this._account = account;
-        this._isComplete = db.isComplete(this._account);
         this._onDone = callbacks === null || callbacks === void 0 ? void 0 : callbacks.onDone;
         this._startTime = Date.now();
-        this._stream = ParsedTransactionStream.stream(endpoint, this._account, {
-            oldestDate: new Date("11/06/2023"),
-            oldestSignature: !this._isComplete
-                ? this._db.getOldestSignature(this._account)
-                : undefined,
-            mostRecentSignature: this._db.getMostRecentSignature(this._account),
-            onSignaturesReceived: (signatures) => this._onNewSignaturesReceived(signatures),
-            onParsedTransactionsReceived: (transactions) => this._loadInstructions(transactions),
-            onDone: () => {
-                this._isDone = true;
-                this._fetchMissingPairs();
-            },
+        this._init(endpoint, account);
+    }
+    _init(endpoint, account) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (account.length >= 43 && account.length <= 44) {
+                this._account = account;
+            }
+            else {
+                const connection = new Connection(endpoint);
+                const signatureMatch = account.match(/\w+$/);
+                if (!signatureMatch || (signatureMatch === null || signatureMatch === void 0 ? void 0 : signatureMatch.length) == 0) {
+                    throw new Error(`${account} is not a valid account or transaction signature`);
+                }
+                const signature = signatureMatch[0];
+                const parsedTransaction = yield connection.getParsedTransaction(signature);
+                const instructions = parseMeteoraInstructions(parsedTransaction);
+                if (instructions.length == 0) {
+                    throw new Error(`${account} is not a Meteora DLMM transaction`);
+                }
+                this._account = instructions[0].accounts.position;
+            }
+            this._isComplete = this._db.isComplete(this._account);
+            this._stream = ParsedTransactionStream.stream(endpoint, this._account, {
+                oldestDate: new Date("11/06/2023"),
+                oldestSignature: !this._isComplete
+                    ? this._db.getOldestSignature(this._account)
+                    : undefined,
+                mostRecentSignature: this._db.getMostRecentSignature(this._account),
+                onSignaturesReceived: (signatures) => this._onNewSignaturesReceived(signatures),
+                onParsedTransactionsReceived: (transactions) => this._loadInstructions(transactions),
+                onDone: () => {
+                    this._isDone = true;
+                    this._fetchMissingPairs();
+                },
+            });
         });
     }
     _loadInstructions(transactions) {
@@ -84,16 +109,18 @@ export default class MeteoraDownloaderStream {
     }
     _onNewSignaturesReceived(signatures) {
         return __awaiter(this, void 0, void 0, function* () {
+            if (this._oldestBlocktime > 0) {
+                this._db.setOldestSignature(this._account, this._oldestBlocktime, this._oldestSignature);
+            }
             this._accountSignatureCount += signatures.length;
             const newest = !this._gotNewest ? signatures[0].signature : undefined;
             this._gotNewest = true;
-            const oldestSignature = signatures[signatures.length - 1].signature;
-            const oldestBlocktime = signatures[signatures.length - 1].blockTime;
-            this._oldestTransactionDate = new Date(oldestBlocktime * 1000);
+            this._oldestBlocktime = signatures[signatures.length - 1].blockTime;
+            this._oldestSignature = signatures[signatures.length - 1].signature;
+            this._oldestTransactionDate = new Date(this._oldestBlocktime * 1000);
             const oldestDate = this._oldestTransactionDate.toDateString();
             const elapsed = Math.round((Date.now() - this._startTime) / 1000);
-            this._db.setOldestSignature(this._account, oldestBlocktime, oldestSignature);
-            console.log(`${elapsed}s - ${newest ? `Newest transaction: ${newest}, ` : ""}Oldest transaction (${oldestDate}): ${oldestSignature}`);
+            console.log(`${elapsed}s - ${newest ? `Newest transaction: ${newest}, ` : ""}Oldest transaction (${oldestDate}): ${this._oldestSignature}`);
         });
     }
     _fetchMissingPairs() {

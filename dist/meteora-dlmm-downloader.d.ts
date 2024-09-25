@@ -29,9 +29,12 @@ export default class MeteoraDownloaderStream {
     private _usdPositionAddresses;
     private _isComplete;
     private _cancelled;
+    private _oldestSignature;
+    private _oldestBlocktime;
     get downloadComplete(): boolean;
     get stats(): MeteoraDlmmDownloaderStats;
     constructor(db: MeteoraDlmmDb, endpoint: string, account: string, callbacks?: MeteoraDlmmDownloaderCallbacks);
+    private _init;
     private _loadInstructions;
     private _onNewSignaturesReceived;
     private _fetchMissingPairs;
