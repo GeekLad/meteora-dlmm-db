@@ -725,6 +725,15 @@ export default class MeteoraDlmmDb {
       	account_address = $account_address,
       	completed = 1
     `);
+        this._getTransactions = this._db.prepare(`
+      SELECT * FROM v_transactions
+    `);
+        this._getPairs = this._db.prepare(`
+      SELECT * FROM dlmm_pairs
+    `);
+        this._getTokens = this._db.prepare(`
+      SELECT * FROM tokens
+    `);
     }
     _addInitialData() {
         this._db.run(`
@@ -983,6 +992,15 @@ export default class MeteoraDlmmDb {
             return undefined;
         }
         return signature[0];
+    }
+    getTransactions() {
+        return this._getAll(this._getTransactions);
+    }
+    getPairs() {
+        return this._getAll(this._getPairs);
+    }
+    getTokens() {
+        return this._getAll(this._getTokens);
     }
     cancelDownload(account) {
         return __awaiter(this, void 0, void 0, function* () {

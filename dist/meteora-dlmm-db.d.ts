@@ -2,6 +2,44 @@ import { type MeteoraDlmmInstruction } from "./meteora-instruction-parser";
 import { type MeteoraDlmmPairData, type MeteoraPositionTransactions } from "./meteora-dlmm-api";
 import { type TokenMeta } from "./jupiter-token-list-api";
 import MeteoraDlmmStream from "./meteora-dlmm-downloader";
+interface MeteoraDlmmDbSchema {
+    [column: string]: number | boolean | string | Array<unknown> | Uint8Array | null;
+}
+export interface MeteoraDlmmDbTransactions extends MeteoraDlmmDbSchema {
+    block_time: number;
+    signature: string;
+    position_address: string;
+    owner_address: string;
+    pair_address: string;
+    removal_bps: number;
+    position_is_open: boolean;
+    price: number;
+    fee_amount: number;
+    deposit: number;
+    withdrawal: number;
+    impermanent_loss: number;
+    pnl: number;
+    usd_fee_amount: number;
+    usd_deposit: number;
+    usd_withdrawal: number;
+    usd_impermanent_loss: number;
+    usd_pnl: number;
+}
+export interface MeteoraDlmmDbPairs extends MeteoraDlmmDbSchema {
+    pair_address: string;
+    name: string;
+    mint_x: string;
+    mint_y: string;
+    bin_step: number;
+    base_fee_bps: number;
+}
+export interface MeteoraDlmmDbTokens extends MeteoraDlmmDbSchema {
+    address: string;
+    name: string;
+    symbol: string;
+    decimals: number;
+    logo: string;
+}
 export default class MeteoraDlmmDb {
     private _db;
     private _addInstructionStatement;
@@ -13,6 +51,9 @@ export default class MeteoraDlmmDb {
     private _fillMissingUsdStatement;
     private _setOldestSignature;
     private _markCompleteStatement;
+    private _getTransactions;
+    private _getPairs;
+    private _getTokens;
     private _downloaders;
     private constructor();
     static create(data?: ArrayLike<number> | Buffer | null): Promise<MeteoraDlmmDb>;
@@ -37,7 +78,11 @@ export default class MeteoraDlmmDb {
     getMissingUsd(): string[];
     getMostRecentSignature(owner_address: string): string | undefined;
     getOldestSignature(owner_address: string): string | undefined;
+    getTransactions(): MeteoraDlmmDbTransactions[];
+    getPairs(): MeteoraDlmmDbPairs[];
+    getTokens(): MeteoraDlmmDbTokens[];
     cancelDownload(account: string): Promise<void>;
     private _getAll;
     save(): Promise<void>;
 }
+export {};

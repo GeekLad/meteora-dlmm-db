@@ -7,6 +7,54 @@ import {
 import { type TokenMeta } from "./jupiter-token-list-api";
 import MeteoraDlmmStream from "./meteora-dlmm-downloader";
 
+interface MeteoraDlmmDbSchema {
+  [column: string]:
+    | number
+    | boolean
+    | string
+    | Array<unknown>
+    | Uint8Array
+    | null;
+}
+
+export interface MeteoraDlmmDbTransactions extends MeteoraDlmmDbSchema {
+  block_time: number;
+  signature: string;
+  position_address: string;
+  owner_address: string;
+  pair_address: string;
+  removal_bps: number;
+  position_is_open: boolean;
+  price: number;
+  fee_amount: number;
+  deposit: number;
+  withdrawal: number;
+  impermanent_loss: number;
+  pnl: number;
+  usd_fee_amount: number;
+  usd_deposit: number;
+  usd_withdrawal: number;
+  usd_impermanent_loss: number;
+  usd_pnl: number;
+}
+
+export interface MeteoraDlmmDbPairs extends MeteoraDlmmDbSchema {
+  pair_address: string;
+  name: string;
+  mint_x: string;
+  mint_y: string;
+  bin_step: number;
+  base_fee_bps: number;
+}
+
+export interface MeteoraDlmmDbTokens extends MeteoraDlmmDbSchema {
+  address: string;
+  name: string;
+  symbol: string;
+  decimals: number;
+  logo: string;
+}
+
 const isBrowser = new Function(
   "try {return this===window;}catch(e){ return false;}",
 );
@@ -36,6 +84,9 @@ export default class MeteoraDlmmDb {
   private _fillMissingUsdStatement!: Statement;
   private _setOldestSignature!: Statement;
   private _markCompleteStatement!: Statement;
+  private _getTransactions!: Statement;
+  private _getPairs!: Statement;
+  private _getTokens!: Statement;
   private _downloaders: Map<string, MeteoraDlmmStream> = new Map();
 
   private constructor() {}
@@ -737,6 +788,15 @@ export default class MeteoraDlmmDb {
       	account_address = $account_address,
       	completed = 1
     `);
+    this._getTransactions = this._db.prepare(`
+      SELECT * FROM v_transactions
+    `);
+    this._getPairs = this._db.prepare(`
+      SELECT * FROM dlmm_pairs
+    `);
+    this._getTokens = this._db.prepare(`
+      SELECT * FROM tokens
+    `);
   }
 
   private _addInitialData() {
@@ -1063,15 +1123,30 @@ export default class MeteoraDlmmDb {
     return signature[0] as string;
   }
 
+  getTransactions(): MeteoraDlmmDbTransactions[] {
+    return this._getAll(this._getTransactions);
+  }
+
+  getPairs(): MeteoraDlmmDbPairs[] {
+    return this._getAll(this._getPairs);
+  }
+
+  getTokens(): MeteoraDlmmDbTokens[] {
+    return this._getAll(this._getTokens);
+  }
+
   async cancelDownload(account: string) {
     this._downloaders.get(account)?.cancel();
     this._downloaders.delete(account);
     await this.save();
   }
 
-  private _getAll<Output>(statement: Statement): Output[] {
-    const output: Output[] = [];
-    while (statement.step()) output.push(statement.getAsObject() as Output);
+  private _getAll<MeteoraDlmmDbSchema>(
+    statement: Statement,
+  ): MeteoraDlmmDbSchema[] {
+    const output: MeteoraDlmmDbSchema[] = [];
+    while (statement.step())
+      output.push(statement.getAsObject() as MeteoraDlmmDbSchema);
     statement.reset();
     return output;
   }
