@@ -200,16 +200,13 @@ export default class MeteoraDlmmDb {
           i.owner_address,
           p.pair_address,
           p.bin_step,
+          p.base_fee_bps,
+          x.address x_mint,
+          x.symbol x_symbol,
           x.decimals x_decimals,
+          y.address y_mint,
+          y.symbol y_symbol,
           y.decimals y_decimals,
-          i.active_bin_id,
-          SUM(CASE WHEN i.active_bin_id IS NOT NULL THEN 1 ELSE 0 END) OVER (PARTITION BY p.pair_address ORDER BY i.block_time) prev_group_id,
-          SUM(CASE WHEN i.active_bin_id IS NOT NULL THEN 1 ELSE 0 END) OVER (PARTITION BY p.pair_address ORDER BY i.block_time DESC) next_group_id,
-          COALESCE(i.removal_bps, 0) removal_bps,
-          MAX(CASE WHEN i.instruction_type = 'close' THEN 1 END) OVER (PARTITION BY i.position_address RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) IS NULL position_is_open,
-          COALESCE(ttx.amount, 0) x_amount,
-          COALESCE(tty.amount, 0) y_amount,
-          COALESCE(ttx.usd_amount, 0) + COALESCE(tty.usd_amount, 0) usd_amount,
           CASE
             WHEN (SELECT q.priority FROM quote_tokens q WHERE q.mint = p.mint_x) IS NULL 
             THEN FALSE
@@ -221,7 +218,15 @@ export default class MeteoraDlmmDb {
               (SELECT q.priority FROM quote_tokens q WHERE q.mint = p.mint_x) < (SELECT q.priority FROM quote_tokens q WHERE q.mint = p.mint_y)
             THEN TRUE
             ELSE FALSE
-          END is_inverted		
+          END is_inverted,          
+          i.active_bin_id,
+          SUM(CASE WHEN i.active_bin_id IS NOT NULL THEN 1 ELSE 0 END) OVER (PARTITION BY p.pair_address ORDER BY i.block_time) prev_group_id,
+          SUM(CASE WHEN i.active_bin_id IS NOT NULL THEN 1 ELSE 0 END) OVER (PARTITION BY p.pair_address ORDER BY i.block_time DESC) next_group_id,
+          COALESCE(i.removal_bps, 0) removal_bps,
+          MAX(CASE WHEN i.instruction_type = 'close' THEN 1 END) OVER (PARTITION BY i.position_address RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) IS NULL position_is_open,
+          COALESCE(ttx.amount, 0) x_amount,
+          COALESCE(tty.amount, 0) y_amount,
+          COALESCE(ttx.usd_amount, 0) + COALESCE(tty.usd_amount, 0) usd_amount
         FROM
           instructions i
           JOIN instruction_types it ON
@@ -264,7 +269,12 @@ export default class MeteoraDlmmDb {
           owner_address,
           pair_address,
           bin_step,
+          base_fee_bps,
+          x_mint,
+          x_symbol,
           x_decimals,
+          y_mint,
+          y_symbol,
           y_decimals,
           is_inverted,
           COALESCE (
@@ -294,6 +304,31 @@ export default class MeteoraDlmmDb {
           position_address,
           owner_address,
           pair_address,
+          base_fee_bps,
+          CASE 
+          	WHEN NOT is_inverted THEN x_mint
+          	ELSE y_mint
+          END base_mint,
+          CASE 
+          	WHEN NOT is_inverted THEN x_symbol
+          	ELSE y_symbol
+          END base_symbol,
+          CASE 
+          	WHEN NOT is_inverted THEN x_decimals
+          	ELSE y_decimals
+          END base_decimals,
+          CASE 
+          	WHEN NOT is_inverted THEN y_mint
+          	ELSE x_mint
+          END quote_mint,
+          CASE 
+          	WHEN NOT is_inverted THEN y_symbol
+          	ELSE x_symbol
+          END quote_symbol,
+          CASE 
+          	WHEN NOT is_inverted THEN y_decimals
+          	ELSE x_decimals
+          END quote_decimals,
           is_inverted,
           removal_bps,
           position_is_open,
@@ -321,6 +356,12 @@ export default class MeteoraDlmmDb {
           position_address,
           owner_address,
           pair_address,
+          base_mint,
+          base_symbol,
+          base_decimals,
+          quote_mint,
+          quote_symbol,
+          quote_decimals,
           is_inverted,
           removal_bps,
           position_is_open,
@@ -332,74 +373,81 @@ export default class MeteoraDlmmDb {
       ),
       transactions AS (
 	      SELECT
-	          block_time,
-	          signature,
-	          position_address,
-	          owner_address,
-	          pair_address,
-	          MAX(removal_bps) removal_bps,
-	          MAX(position_is_open) position_is_open,
-	          price,
-	          COALESCE(
-	            SUM(
-	              CASE 
-	                WHEN instruction_type = 'claim' THEN price * base_amount + quote_amount 
-	                ELSE 0 
-	              END
-	            ),
-	            0
-	          ) fee_amount,
-	          COALESCE(
-	            SUM(
-	              CASE 
-	                WHEN instruction_type = 'add' THEN price * base_amount + quote_amount
-	                ELSE 0
-	              END
-	            ),
-	            0
-	          ) deposit,
-	          COALESCE(
-	            SUM(
-	              CASE 
-	                WHEN instruction_type = 'remove' THEN price * base_amount + quote_amount
-	                ELSE 0
-	              END
-	            ),
-	            0
-	          ) withdrawal,
-	          COALESCE(
-	            SUM(
-	              CASE 
-	                WHEN instruction_type = 'claim' THEN usd_amount 
-	                ELSE 0 
-	              END
-	            ),
-	            0
-	          ) usd_fee_amount,
-	          COALESCE(
-	            SUM(
-	              CASE 
-	                WHEN instruction_type = 'add' THEN usd_amount		
-	              END
-	            ),
-	            0
-	          ) usd_deposit,
-	          COALESCE(
-	            SUM(
-	              CASE 
-	                WHEN instruction_type = 'remove' THEN usd_amount
-	              END
-	            ),
-	            0
-	          ) usd_withdrawal          
-	      FROM
-	        prices
-	      GROUP BY
-	        block_time,
-	        signature,
-	        position_address,
-	        owner_address,
-	        pair_address
+          block_time,
+          signature,
+          position_address,
+          owner_address,
+          pair_address,
+          base_mint,
+          base_symbol,
+          base_decimals,
+          quote_mint,
+          quote_symbol,
+          quote_decimals,
+          is_inverted,
+          MAX(removal_bps) removal_bps,
+          MAX(position_is_open) position_is_open,
+          price,
+          COALESCE(
+            SUM(
+              CASE 
+                WHEN instruction_type = 'claim' THEN price * base_amount + quote_amount 
+                ELSE 0 
+              END
+            ),
+            0
+          ) fee_amount,
+          COALESCE(
+            SUM(
+              CASE 
+                WHEN instruction_type = 'add' THEN price * base_amount + quote_amount
+                ELSE 0
+              END
+            ),
+            0
+          ) deposit,
+          COALESCE(
+            SUM(
+              CASE 
+                WHEN instruction_type = 'remove' THEN price * base_amount + quote_amount
+                ELSE 0
+              END
+            ),
+            0
+          ) withdrawal,
+          COALESCE(
+            SUM(
+              CASE 
+                WHEN instruction_type = 'claim' THEN usd_amount 
+                ELSE 0 
+              END
+            ),
+            0
+          ) usd_fee_amount,
+          COALESCE(
+            SUM(
+              CASE 
+                WHEN instruction_type = 'add' THEN usd_amount		
+              END
+            ),
+            0
+          ) usd_deposit,
+          COALESCE(
+            SUM(
+              CASE 
+                WHEN instruction_type = 'remove' THEN usd_amount
+              END
+            ),
+            0
+          ) usd_withdrawal          
+      FROM
+        prices
+      GROUP BY
+        block_time,
+        signature,
+        position_address,
+        owner_address,
+        pair_address
       ),
       balance_change_groups AS (
 	      SELECT 
@@ -415,6 +463,13 @@ export default class MeteoraDlmmDb {
 	      	position_address,
 	      	owner_address,
 	      	pair_address,
+          base_mint,
+          base_symbol,
+          base_decimals,
+          quote_mint,
+          quote_symbol,
+          quote_decimals,
+          is_inverted,          
 	      	removal_bps,
 	        position_is_open,
 	      	price,
@@ -468,6 +523,13 @@ export default class MeteoraDlmmDb {
 	      	position_address,
 	      	owner_address,
 	      	pair_address,
+          base_mint,
+          base_symbol,
+          base_decimals,
+          quote_mint,
+          quote_symbol,
+          quote_decimals,
+          is_inverted,
 	      	removal_bps,
 	        position_is_open,
 	      	price,
@@ -489,6 +551,13 @@ export default class MeteoraDlmmDb {
       	position_address,
       	owner_address,
       	pair_address,
+        base_mint,
+        base_symbol,
+        base_decimals,
+        quote_mint,
+        quote_symbol,
+        quote_decimals,
+        is_inverted,
       	removal_bps,
         position_is_open,
       	price,
@@ -727,12 +796,6 @@ export default class MeteoraDlmmDb {
     `);
         this._getTransactions = this._db.prepare(`
       SELECT * FROM v_transactions
-    `);
-        this._getPairs = this._db.prepare(`
-      SELECT * FROM dlmm_pairs
-    `);
-        this._getTokens = this._db.prepare(`
-      SELECT * FROM tokens
     `);
     }
     _addInitialData() {
@@ -995,12 +1058,6 @@ export default class MeteoraDlmmDb {
     }
     getTransactions() {
         return this._getAll(this._getTransactions);
-    }
-    getPairs() {
-        return this._getAll(this._getPairs);
-    }
-    getTokens() {
-        return this._getAll(this._getTokens);
     }
     cancelDownload(account) {
         return __awaiter(this, void 0, void 0, function* () {

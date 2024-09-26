@@ -11,6 +11,13 @@ export interface MeteoraDlmmDbTransactions extends MeteoraDlmmDbSchema {
     position_address: string;
     owner_address: string;
     pair_address: string;
+    base_mint: string;
+    base_symbol: string;
+    base_decimals: number;
+    quote_mint: string;
+    quote_symbol: string;
+    quote_decimals: string;
+    is_inverted: number;
     removal_bps: number;
     position_is_open: boolean;
     price: number;
@@ -52,8 +59,6 @@ export default class MeteoraDlmmDb {
     private _setOldestSignature;
     private _markCompleteStatement;
     private _getTransactions;
-    private _getPairs;
-    private _getTokens;
     private _downloaders;
     private constructor();
     static create(data?: ArrayLike<number> | Buffer | null): Promise<MeteoraDlmmDb>;
@@ -79,8 +84,6 @@ export default class MeteoraDlmmDb {
     getMostRecentSignature(owner_address: string): string | undefined;
     getOldestSignature(owner_address: string): string | undefined;
     getTransactions(): MeteoraDlmmDbTransactions[];
-    getPairs(): MeteoraDlmmDbPairs[];
-    getTokens(): MeteoraDlmmDbTokens[];
     cancelDownload(account: string): Promise<void>;
     private _getAll;
     save(): Promise<void>;
