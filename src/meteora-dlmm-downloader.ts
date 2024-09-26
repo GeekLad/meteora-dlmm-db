@@ -15,6 +15,7 @@ interface MeteoraDlmmDownloaderCallbacks {
 
 export interface MeteoraDlmmDownloaderStats {
   downloadingComplete: boolean;
+  positionsComplete: boolean;
   secondsElapsed: number;
   accountSignatureCount: number;
   oldestTransactionDate?: Date;
@@ -45,17 +46,21 @@ export default class MeteoraDownloaderStream {
   private _oldestBlocktime: number = 0;
 
   get downloadComplete(): boolean {
+    return this.positionsComplete && !this._fetchingUsd;
+  }
+
+  get positionsComplete(): boolean {
     return (
       this._isDone &&
       !this._fetchingMissingPairs &&
-      !this._fetchingMissingTokens &&
-      !this._fetchingUsd
+      !this._fetchingMissingTokens
     );
   }
 
   get stats(): MeteoraDlmmDownloaderStats {
     return {
       downloadingComplete: this.downloadComplete,
+      positionsComplete: this.positionsComplete,
       secondsElapsed: (Date.now() - this._startTime) / 1000,
       accountSignatureCount: this._accountSignatureCount,
       positionCount: this._positionAddresses.size,

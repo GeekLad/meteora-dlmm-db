@@ -4,6 +4,7 @@ interface MeteoraDlmmDownloaderCallbacks {
 }
 export interface MeteoraDlmmDownloaderStats {
     downloadingComplete: boolean;
+    positionsComplete: boolean;
     secondsElapsed: number;
     accountSignatureCount: number;
     oldestTransactionDate?: Date;
@@ -32,6 +33,7 @@ export default class MeteoraDownloaderStream {
     private _oldestSignature;
     private _oldestBlocktime;
     get downloadComplete(): boolean;
+    get positionsComplete(): boolean;
     get stats(): MeteoraDlmmDownloaderStats;
     constructor(db: MeteoraDlmmDb, endpoint: string, account: string, callbacks?: MeteoraDlmmDownloaderCallbacks);
     private _init;

@@ -14,14 +14,17 @@ import { parseMeteoraInstructions } from "./meteora-instruction-parser";
 import { ParsedTransactionStream } from "./solana-transaction-utils";
 export default class MeteoraDownloaderStream {
     get downloadComplete() {
+        return this.positionsComplete && !this._fetchingUsd;
+    }
+    get positionsComplete() {
         return (this._isDone &&
             !this._fetchingMissingPairs &&
-            !this._fetchingMissingTokens &&
-            !this._fetchingUsd);
+            !this._fetchingMissingTokens);
     }
     get stats() {
         return {
             downloadingComplete: this.downloadComplete,
+            positionsComplete: this.positionsComplete,
             secondsElapsed: (Date.now() - this._startTime) / 1000,
             accountSignatureCount: this._accountSignatureCount,
             positionCount: this._positionAddresses.size,
