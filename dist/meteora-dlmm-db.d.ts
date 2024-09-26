@@ -32,21 +32,6 @@ export interface MeteoraDlmmDbTransactions extends MeteoraDlmmDbSchema {
     usd_impermanent_loss: number;
     usd_pnl: number;
 }
-export interface MeteoraDlmmDbPairs extends MeteoraDlmmDbSchema {
-    pair_address: string;
-    name: string;
-    mint_x: string;
-    mint_y: string;
-    bin_step: number;
-    base_fee_bps: number;
-}
-export interface MeteoraDlmmDbTokens extends MeteoraDlmmDbSchema {
-    address: string;
-    name: string;
-    symbol: string;
-    decimals: number;
-    logo: string;
-}
 export default class MeteoraDlmmDb {
     private _db;
     private _addInstructionStatement;

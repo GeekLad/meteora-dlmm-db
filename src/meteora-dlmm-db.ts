@@ -45,23 +45,6 @@ export interface MeteoraDlmmDbTransactions extends MeteoraDlmmDbSchema {
   usd_pnl: number;
 }
 
-export interface MeteoraDlmmDbPairs extends MeteoraDlmmDbSchema {
-  pair_address: string;
-  name: string;
-  mint_x: string;
-  mint_y: string;
-  bin_step: number;
-  base_fee_bps: number;
-}
-
-export interface MeteoraDlmmDbTokens extends MeteoraDlmmDbSchema {
-  address: string;
-  name: string;
-  symbol: string;
-  decimals: number;
-  logo: string;
-}
-
 const isBrowser = new Function(
   "try {return this===window;}catch(e){ return false;}",
 );
