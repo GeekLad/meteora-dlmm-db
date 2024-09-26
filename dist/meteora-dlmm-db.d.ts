@@ -14,9 +14,11 @@ export interface MeteoraDlmmDbTransactions extends MeteoraDlmmDbSchema {
     base_mint: string;
     base_symbol: string;
     base_decimals: number;
+    base_logo: string;
     quote_mint: string;
     quote_symbol: string;
-    quote_decimals: string;
+    quote_decimals: number;
+    quote_logo: string;
     is_inverted: number;
     removal_bps: number;
     position_is_open: boolean;

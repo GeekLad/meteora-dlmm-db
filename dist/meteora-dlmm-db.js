@@ -204,9 +204,11 @@ export default class MeteoraDlmmDb {
           x.address x_mint,
           x.symbol x_symbol,
           x.decimals x_decimals,
+          x.logo x_logo,
           y.address y_mint,
           y.symbol y_symbol,
           y.decimals y_decimals,
+          y.logo y_logo,
           CASE
             WHEN (SELECT q.priority FROM quote_tokens q WHERE q.mint = p.mint_x) IS NULL 
             THEN FALSE
@@ -273,9 +275,11 @@ export default class MeteoraDlmmDb {
           x_mint,
           x_symbol,
           x_decimals,
+          x_logo,
           y_mint,
           y_symbol,
           y_decimals,
+          y_logo,
           is_inverted,
           COALESCE (
             active_bin_id,
@@ -318,6 +322,10 @@ export default class MeteoraDlmmDb {
           	ELSE y_decimals
           END base_decimals,
           CASE 
+          	WHEN NOT is_inverted THEN x_logo
+          	ELSE y_logo
+          END base_logo,
+          CASE 
           	WHEN NOT is_inverted THEN y_mint
           	ELSE x_mint
           END quote_mint,
@@ -329,6 +337,10 @@ export default class MeteoraDlmmDb {
           	WHEN NOT is_inverted THEN y_decimals
           	ELSE x_decimals
           END quote_decimals,
+          CASE 
+          	WHEN NOT is_inverted THEN y_logo
+          	ELSE x_logo
+          END quote_logo,
           is_inverted,
           removal_bps,
           position_is_open,
@@ -359,9 +371,11 @@ export default class MeteoraDlmmDb {
           base_mint,
           base_symbol,
           base_decimals,
+          base_logo,
           quote_mint,
           quote_symbol,
           quote_decimals,
+          quote_logo,
           is_inverted,
           removal_bps,
           position_is_open,
@@ -381,9 +395,11 @@ export default class MeteoraDlmmDb {
           base_mint,
           base_symbol,
           base_decimals,
+          base_logo,
           quote_mint,
           quote_symbol,
           quote_decimals,
+          quote_logo,
           is_inverted,
           MAX(removal_bps) removal_bps,
           MAX(position_is_open) position_is_open,
@@ -466,9 +482,11 @@ export default class MeteoraDlmmDb {
           base_mint,
           base_symbol,
           base_decimals,
+          base_logo,
           quote_mint,
           quote_symbol,
           quote_decimals,
+          quote_logo,
           is_inverted,          
 	      	removal_bps,
 	        position_is_open,
@@ -526,9 +544,11 @@ export default class MeteoraDlmmDb {
           base_mint,
           base_symbol,
           base_decimals,
+          base_logo,
           quote_mint,
           quote_symbol,
           quote_decimals,
+          quote_logo,
           is_inverted,
 	      	removal_bps,
 	        position_is_open,
@@ -554,9 +574,11 @@ export default class MeteoraDlmmDb {
         base_mint,
         base_symbol,
         base_decimals,
+        base_logo,
         quote_mint,
         quote_symbol,
         quote_decimals,
+        quote_logo,
         is_inverted,
       	removal_bps,
         position_is_open,
