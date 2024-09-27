@@ -12,7 +12,7 @@ import { JupiterTokenListApi } from "./jupiter-token-list-api";
 import { MeteoraDlmmApi } from "./meteora-dlmm-api";
 import { parseMeteoraInstructions } from "./meteora-instruction-parser";
 import { ParsedTransactionStream } from "./solana-transaction-utils";
-export default class MeteoraDownloaderStream {
+export default class MeteoraDownloader {
     get downloadComplete() {
         return this.positionsComplete && !this._fetchingUsd;
     }
@@ -45,6 +45,7 @@ export default class MeteoraDownloaderStream {
         this._usdPositionAddresses = new Set();
         this._isComplete = false;
         this._cancelled = false;
+        this._fullyCancelled = false;
         this._oldestSignature = "";
         this._oldestBlocktime = 0;
         this._db = db;
@@ -90,14 +91,14 @@ export default class MeteoraDownloaderStream {
     _loadInstructions(transactions) {
         return __awaiter(this, void 0, void 0, function* () {
             if (this._cancelled) {
-                return;
+                return this._fetchUsd();
             }
             let instructionCount = 0;
             const start = Date.now();
             transactions.forEach((transaction) => {
                 parseMeteoraInstructions(transaction).forEach((instruction) => {
                     if (this._cancelled) {
-                        return;
+                        return this._fetchUsd();
                     }
                     this._db.addInstruction(instruction);
                     instructionCount++;
@@ -129,7 +130,7 @@ export default class MeteoraDownloaderStream {
     _fetchMissingPairs() {
         return __awaiter(this, void 0, void 0, function* () {
             if (this._fetchingMissingPairs || this._cancelled) {
-                return;
+                return this._fetchUsd();
             }
             let missingPairs = this._db.getMissingPairs();
             if (missingPairs.length > 0) {
@@ -139,12 +140,12 @@ export default class MeteoraDownloaderStream {
                     if (address) {
                         const missingPair = yield MeteoraDlmmApi.getDlmmPairData(address);
                         if (this._cancelled) {
-                            return;
+                            return this._fetchUsd();
                         }
                         this._db.addPair(missingPair);
                         console.log(`Added missing pair for ${missingPair.name}`);
                         if (this._cancelled) {
-                            return;
+                            return this._fetchUsd();
                         }
                         missingPairs = this._db.getMissingPairs();
                     }
@@ -157,7 +158,7 @@ export default class MeteoraDownloaderStream {
     _fetchMissingTokens() {
         return __awaiter(this, void 0, void 0, function* () {
             if (this._fetchingMissingTokens || this._cancelled) {
-                return;
+                return this._fetchUsd();
             }
             let missingTokens = this._db.getMissingTokens();
             if (missingTokens.length > 0) {
@@ -168,7 +169,7 @@ export default class MeteoraDownloaderStream {
                         const missingToken = yield JupiterTokenListApi.getToken(address);
                         if (missingToken) {
                             if (this._cancelled) {
-                                return;
+                                return this._fetchUsd();
                             }
                             this._db.addToken(missingToken);
                             console.log(`Added missing token ${missingToken.symbol}`);
@@ -178,7 +179,7 @@ export default class MeteoraDownloaderStream {
                         }
                     }
                     if (this._cancelled) {
-                        return;
+                        return this._fetchUsd();
                     }
                     missingTokens = this._db.getMissingTokens();
                 }
@@ -189,7 +190,7 @@ export default class MeteoraDownloaderStream {
     }
     _fetchUsd() {
         return __awaiter(this, void 0, void 0, function* () {
-            if (this._fetchingUsd || this._cancelled) {
+            if (this._fetchingUsd || this._fullyCancelled) {
                 return;
             }
             let missingUsd = this._db.getMissingUsd();
@@ -200,14 +201,14 @@ export default class MeteoraDownloaderStream {
                     if (address) {
                         this._usdPositionAddresses.add(address);
                         const usd = yield MeteoraDlmmApi.getTransactions(address);
-                        if (this._cancelled) {
+                        if (this._fullyCancelled) {
                             return;
                         }
                         this._db.addUsdTransactions(address, usd);
                         const elapsed = Math.round((Date.now() - this._startTime) / 1000);
                         console.log(`${elapsed}s - Added USD transactions for position ${address}`);
                     }
-                    if (this._cancelled) {
+                    if (this._fullyCancelled) {
                         return;
                     }
                     missingUsd = this._db.getMissingUsd();
@@ -222,7 +223,7 @@ export default class MeteoraDownloaderStream {
     }
     _finish() {
         return __awaiter(this, void 0, void 0, function* () {
-            if (this.downloadComplete && !this._cancelled) {
+            if (this.downloadComplete && !this._fullyCancelled) {
                 this._db.markComplete(this._account);
                 yield this._db.save();
                 if (this._onDone) {
@@ -232,8 +233,13 @@ export default class MeteoraDownloaderStream {
         });
     }
     cancel() {
-        this._cancelled = true;
-        this._stream.cancel();
+        if (this._cancelled) {
+            this._fullyCancelled = true;
+        }
+        else {
+            this._cancelled = true;
+            this._stream.cancel();
+        }
     }
 }
 //# sourceMappingURL=meteora-dlmm-downloader.js.map

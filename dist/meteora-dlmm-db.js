@@ -8,7 +8,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import initSqlJs from "sql.js";
-import MeteoraDlmmStream from "./meteora-dlmm-downloader";
+import MeteoraDlmmDownloader from "./meteora-dlmm-downloader";
 const isBrowser = new Function("try {return this===window;}catch(e){ return false;}");
 let SQL;
 function initSql() {
@@ -998,9 +998,9 @@ export default class MeteoraDlmmDb {
                 onDone: () => this._downloaders.delete(account),
             };
         }
-        const stream = new MeteoraDlmmStream(this, endpoint, account, callbacks);
-        this._downloaders.set(account, stream);
-        return stream;
+        const downloader = new MeteoraDlmmDownloader(this, endpoint, account, callbacks);
+        this._downloaders.set(account, downloader);
+        return downloader;
     }
     getMissingPairs() {
         return this._db

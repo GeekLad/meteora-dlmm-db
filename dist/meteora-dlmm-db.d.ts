@@ -1,7 +1,7 @@
 import { type MeteoraDlmmInstruction } from "./meteora-instruction-parser";
 import { type MeteoraDlmmPairData, type MeteoraPositionTransactions } from "./meteora-dlmm-api";
 import { type TokenMeta } from "./jupiter-token-list-api";
-import MeteoraDlmmStream from "./meteora-dlmm-downloader";
+import MeteoraDlmmDownloader from "./meteora-dlmm-downloader";
 interface MeteoraDlmmDbSchema {
     [column: string]: number | boolean | string | Array<unknown> | Uint8Array | null;
 }
@@ -64,7 +64,7 @@ export default class MeteoraDlmmDb {
     isComplete(account_address: string): boolean;
     download(endpoint: string, account: string, callbacks?: {
         onDone?: (...args: any[]) => any;
-    }): MeteoraDlmmStream;
+    }): MeteoraDlmmDownloader;
     getMissingPairs(): string[];
     getMissingTokens(): string[];
     getMissingUsd(): string[];

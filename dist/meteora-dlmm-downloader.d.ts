@@ -12,7 +12,7 @@ export interface MeteoraDlmmDownloaderStats {
     positionCount: number;
     usdPositionCount: number;
 }
-export default class MeteoraDownloaderStream {
+export default class MeteoraDownloader {
     private _db;
     private _account;
     private _stream;
@@ -30,6 +30,7 @@ export default class MeteoraDownloaderStream {
     private _usdPositionAddresses;
     private _isComplete;
     private _cancelled;
+    private _fullyCancelled;
     private _oldestSignature;
     private _oldestBlocktime;
     get downloadComplete(): boolean;

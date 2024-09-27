@@ -5,7 +5,7 @@ import {
   type MeteoraPositionTransactions,
 } from "./meteora-dlmm-api";
 import { type TokenMeta } from "./jupiter-token-list-api";
-import MeteoraDlmmStream from "./meteora-dlmm-downloader";
+import MeteoraDlmmDownloader from "./meteora-dlmm-downloader";
 
 interface MeteoraDlmmDbSchema {
   [column: string]:
@@ -77,7 +77,7 @@ export default class MeteoraDlmmDb {
   private _setOldestSignature!: Statement;
   private _markCompleteStatement!: Statement;
   private _getTransactions!: Statement;
-  private _downloaders: Map<string, MeteoraDlmmStream> = new Map();
+  private _downloaders: Map<string, MeteoraDlmmDownloader> = new Map();
 
   private constructor() {}
 
@@ -1087,7 +1087,7 @@ export default class MeteoraDlmmDb {
     callbacks?: {
       onDone?: (...args: any[]) => any;
     },
-  ): MeteoraDlmmStream {
+  ): MeteoraDlmmDownloader {
     if (this._downloaders.has(account)) {
       return this._downloaders.get(account)!;
     }
@@ -1106,9 +1106,14 @@ export default class MeteoraDlmmDb {
         onDone: () => this._downloaders.delete(account),
       };
     }
-    const stream = new MeteoraDlmmStream(this, endpoint, account, callbacks);
-    this._downloaders.set(account, stream);
-    return stream;
+    const downloader = new MeteoraDlmmDownloader(
+      this,
+      endpoint,
+      account,
+      callbacks,
+    );
+    this._downloaders.set(account, downloader);
+    return downloader;
   }
 
   getMissingPairs(): string[] {
