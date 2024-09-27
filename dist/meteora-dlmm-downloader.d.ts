@@ -13,6 +13,7 @@ export interface MeteoraDlmmDownloaderStats {
     positionTransactionCount: number;
     positionCount: number;
     usdPositionCount: number;
+    missingUsd: number;
 }
 export default class MeteoraDownloader {
     private _db;

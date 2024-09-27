@@ -32,6 +32,7 @@ export default class MeteoraDownloader {
             positionCount: this._positionAddresses.size,
             positionTransactionCount: this._positionTransactionIds.size,
             usdPositionCount: this._usdPositionAddresses.size,
+            missingUsd: this._db.getMissingUsd().length,
             oldestTransactionDate: this._oldestTransactionDate,
         };
     }
