@@ -270,7 +270,9 @@ export default class MeteoraDownloader {
 
   private async _finish() {
     if (this.downloadComplete && !this._fullyCancelled) {
-      this._db.markComplete(this._account);
+      if (!this._transactionDownloadCancelled) {
+        this._db.markComplete(this._account);
+      }
       await this._db.save();
       if (this._onDone) {
         this._onDone();
