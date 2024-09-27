@@ -5,6 +5,8 @@ interface MeteoraDlmmDownloaderCallbacks {
 export interface MeteoraDlmmDownloaderStats {
     downloadingComplete: boolean;
     positionsComplete: boolean;
+    transactionDownloadCancelled: boolean;
+    fullyCancelled: boolean;
     secondsElapsed: number;
     accountSignatureCount: number;
     oldestTransactionDate?: Date;
@@ -29,7 +31,7 @@ export default class MeteoraDownloader {
     private _positionAddresses;
     private _usdPositionAddresses;
     private _isComplete;
-    private _cancelled;
+    private _transactionDownloadCancelled;
     private _fullyCancelled;
     private _oldestSignature;
     private _oldestBlocktime;

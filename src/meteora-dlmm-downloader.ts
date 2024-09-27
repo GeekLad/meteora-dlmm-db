@@ -16,6 +16,8 @@ interface MeteoraDlmmDownloaderCallbacks {
 export interface MeteoraDlmmDownloaderStats {
   downloadingComplete: boolean;
   positionsComplete: boolean;
+  transactionDownloadCancelled: boolean;
+  fullyCancelled: boolean;
   secondsElapsed: number;
   accountSignatureCount: number;
   oldestTransactionDate?: Date;
@@ -41,7 +43,7 @@ export default class MeteoraDownloader {
   private _positionAddresses: Set<string> = new Set();
   private _usdPositionAddresses: Set<string> = new Set();
   private _isComplete = false;
-  private _cancelled = false;
+  private _transactionDownloadCancelled = false;
   private _fullyCancelled = false;
   private _oldestSignature: string = "";
   private _oldestBlocktime: number = 0;
@@ -62,6 +64,8 @@ export default class MeteoraDownloader {
     return {
       downloadingComplete: this.downloadComplete,
       positionsComplete: this.positionsComplete,
+      transactionDownloadCancelled: this._transactionDownloadCancelled,
+      fullyCancelled: this._fullyCancelled,
       secondsElapsed: (Date.now() - this._startTime) / 1000,
       accountSignatureCount: this._accountSignatureCount,
       positionCount: this._positionAddresses.size,
@@ -126,14 +130,14 @@ export default class MeteoraDownloader {
   private async _loadInstructions(
     transactions: (ParsedTransactionWithMeta | null)[],
   ) {
-    if (this._cancelled) {
+    if (this._transactionDownloadCancelled) {
       return this._fetchUsd();
     }
     let instructionCount = 0;
     const start = Date.now();
     transactions.forEach((transaction) => {
       parseMeteoraInstructions(transaction).forEach((instruction) => {
-        if (this._cancelled) {
+        if (this._transactionDownloadCancelled) {
           return this._fetchUsd();
         }
         this._db.addInstruction(instruction);
@@ -171,7 +175,7 @@ export default class MeteoraDownloader {
   }
 
   private async _fetchMissingPairs() {
-    if (this._fetchingMissingPairs || this._cancelled) {
+    if (this._fetchingMissingPairs || this._transactionDownloadCancelled) {
       return this._fetchUsd();
     }
     let missingPairs = this._db.getMissingPairs();
@@ -181,12 +185,12 @@ export default class MeteoraDownloader {
         const address = missingPairs.shift();
         if (address) {
           const missingPair = await MeteoraDlmmApi.getDlmmPairData(address);
-          if (this._cancelled) {
+          if (this._transactionDownloadCancelled) {
             return this._fetchUsd();
           }
           this._db.addPair(missingPair);
           console.log(`Added missing pair for ${missingPair.name}`);
-          if (this._cancelled) {
+          if (this._transactionDownloadCancelled) {
             return this._fetchUsd();
           }
           missingPairs = this._db.getMissingPairs();
@@ -198,7 +202,7 @@ export default class MeteoraDownloader {
   }
 
   private async _fetchMissingTokens() {
-    if (this._fetchingMissingTokens || this._cancelled) {
+    if (this._fetchingMissingTokens || this._transactionDownloadCancelled) {
       return this._fetchUsd();
     }
     let missingTokens = this._db.getMissingTokens();
@@ -209,7 +213,7 @@ export default class MeteoraDownloader {
         if (address) {
           const missingToken = await JupiterTokenListApi.getToken(address);
           if (missingToken) {
-            if (this._cancelled) {
+            if (this._transactionDownloadCancelled) {
               return this._fetchUsd();
             }
             this._db.addToken(missingToken);
@@ -220,7 +224,7 @@ export default class MeteoraDownloader {
             );
           }
         }
-        if (this._cancelled) {
+        if (this._transactionDownloadCancelled) {
           return this._fetchUsd();
         }
         missingTokens = this._db.getMissingTokens();
@@ -275,10 +279,10 @@ export default class MeteoraDownloader {
   }
 
   cancel() {
-    if (this._cancelled) {
+    if (this._transactionDownloadCancelled) {
       this._fullyCancelled = true;
     } else {
-      this._cancelled = true;
+      this._transactionDownloadCancelled = true;
       this._stream.cancel();
     }
   }
