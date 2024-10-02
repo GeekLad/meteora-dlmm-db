@@ -25,10 +25,10 @@ To set up the project for development:
 
 2. Install dependencies:
    ```bash
-   npm install
+   bun install
    ```
 
 3. Build the project:
    ```bash
-   npm run build
+   bun run build
    ```
