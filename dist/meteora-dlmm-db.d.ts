@@ -7,6 +7,7 @@ interface MeteoraDlmmDbSchema {
 }
 export interface MeteoraDlmmDbTransactions extends MeteoraDlmmDbSchema {
     block_time: number;
+    is_hawksight: boolean;
     signature: string;
     position_address: string;
     owner_address: string;

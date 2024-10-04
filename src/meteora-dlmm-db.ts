@@ -19,6 +19,7 @@ interface MeteoraDlmmDbSchema {
 
 export interface MeteoraDlmmDbTransactions extends MeteoraDlmmDbSchema {
   block_time: number;
+  is_hawksight: boolean;
   signature: string;
   position_address: string;
   owner_address: string;
@@ -120,6 +121,7 @@ export default class MeteoraDlmmDb {
       CREATE TABLE IF NOT EXISTS instructions (
         signature TEXT NOT NULL,
         slot INTEGER NOT NULL,
+        is_hawksight INTEGER NOT NULL,
         block_time INTEGER NOT NULL,
         instruction_name TEXT NOT NULL,
         instruction_type TEXT NOT NULL,
@@ -246,6 +248,7 @@ export default class MeteoraDlmmDb {
       WITH instructions_with_active_bin_id_groups AS (
         SELECT
           i.block_time,
+          i.is_hawksight,
           i.signature,
           i.instruction_type,
           i.position_address,
@@ -317,6 +320,7 @@ export default class MeteoraDlmmDb {
       backfilled_active_bin_ids AS (
         SELECT
           block_time,
+          is_hawksight,
           signature,
           instruction_type,
           position_address,
@@ -355,6 +359,7 @@ export default class MeteoraDlmmDb {
       prices AS (
         SELECT
           block_time,
+          is_hawksight,
           signature,
           instruction_type,
           position_address,
@@ -440,6 +445,7 @@ export default class MeteoraDlmmDb {
       transactions AS (
 	      SELECT
           block_time,
+          is_hawksight,
           signature,
           position_address,
           owner_address,
@@ -512,6 +518,7 @@ export default class MeteoraDlmmDb {
         prices
       GROUP BY
         block_time,
+        is_hawksight,
         signature,
         position_address,
         owner_address,
@@ -527,6 +534,7 @@ export default class MeteoraDlmmDb {
       balances AS (
 	      SELECT
 	      	block_time,
+          is_hawksight,
 	      	signature,
 	      	position_address,
 	      	owner_address,
@@ -589,6 +597,7 @@ export default class MeteoraDlmmDb {
       pnl AS (
 	      SELECT
 	      	block_time,
+          is_hawksight,
 	      	signature,
 	      	position_address,
 	      	owner_address,
@@ -619,6 +628,7 @@ export default class MeteoraDlmmDb {
       )
       SELECT 
       	block_time,
+        is_hawksight,
       	signature,
       	position_address,
       	owner_address,
@@ -712,6 +722,7 @@ export default class MeteoraDlmmDb {
         signature, 
         slot, 
         block_time, 
+        is_hawksight,
         instruction_name,
         instruction_type,
         position_address,
@@ -724,6 +735,7 @@ export default class MeteoraDlmmDb {
         $signature, 
         $slot, 
         $block_time, 
+        $is_hawksight,
         $instruction_name, 
         $instruction_type, 
         $position_address, 
@@ -898,12 +910,14 @@ export default class MeteoraDlmmDb {
       signature: $signature,
       slot: $slot,
       blockTime: $block_time,
+      isHawksight,
       instructionName: $instruction_name,
       instructionType: $instruction_type,
       accounts,
       activeBinId: $active_bin_id,
       removalBps: $removal_bps,
     } = instruction;
+    const $is_hawksight = Number(isHawksight);
     const {
       position: $position_address,
       lbPair: $pair_address,
@@ -913,6 +927,7 @@ export default class MeteoraDlmmDb {
       $signature,
       $slot,
       $block_time,
+      $is_hawksight,
       $instruction_name,
       $instruction_type,
       $position_address,

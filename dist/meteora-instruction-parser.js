@@ -2,6 +2,7 @@ import { IDL, LBCLMM_PROGRAM_IDS } from "@meteora-ag/dlmm";
 import { BorshEventCoder, BorshInstructionCoder, } from "@project-serum/anchor";
 import { base64, bs58 } from "@project-serum/anchor/dist/cjs/utils/bytes";
 import { getInstructionIndex, getAccountMetas, getTokenTransfers, } from "./solana-transaction-utils";
+import { getHawksightAccount } from "./hawksight-parser";
 const INSTRUCTION_MAP = new Map([
     ["initializePosition", "open"],
     ["addLiquidity", "add"],
@@ -51,23 +52,24 @@ export function parseMeteoraInstructions(transaction) {
     if (transaction == null) {
         return [];
     }
-    const parsedInstructions = transaction.transaction.message.instructions.map((instruction) => parseMeteoraInstruction(transaction, instruction));
+    const hawksightAccount = getHawksightAccount(transaction);
+    const parsedInstructions = transaction.transaction.message.instructions.map((instruction) => parseMeteoraInstruction(transaction, instruction, hawksightAccount));
     if ((_a = transaction.meta) === null || _a === void 0 ? void 0 : _a.innerInstructions) {
         const innerInstructions = transaction.meta.innerInstructions
             .map((instruction) => instruction.instructions)
             .flat()
-            .map((instruction) => parseMeteoraInstruction(transaction, instruction));
+            .map((instruction) => parseMeteoraInstruction(transaction, instruction, hawksightAccount));
         return parsedInstructions
             .concat(innerInstructions)
             .filter((instruction) => instruction !== null);
     }
     return parsedInstructions.filter((instruction) => instruction !== null);
 }
-function parseMeteoraInstruction(transaction, instruction) {
+function parseMeteoraInstruction(transaction, instruction, hawksightAccount) {
     if (instruction.programId.toBase58() == LBCLMM_PROGRAM_IDS["mainnet-beta"]) {
         try {
             if ("data" in instruction) {
-                return getMeteoraInstructionData(transaction, instruction);
+                return getMeteoraInstructionData(transaction, instruction, hawksightAccount);
             }
         }
         catch (err) {
@@ -77,7 +79,7 @@ function parseMeteoraInstruction(transaction, instruction) {
     }
     return null;
 }
-function getMeteoraInstructionData(transaction, instruction) {
+function getMeteoraInstructionData(transaction, instruction, hawksightAccount) {
     const decodedInstruction = INSTRUCTION_CODER.decode(instruction.data, "base58");
     if (!transaction.blockTime) {
         throw new Error(`Transaction blockTime missing from signature ${transaction.transaction.signatures[0]}`);
@@ -93,11 +95,12 @@ function getMeteoraInstructionData(transaction, instruction) {
     const instructionName = decodedInstruction.name;
     const instructionType = INSTRUCTION_MAP.get(decodedInstruction.name);
     const accountMetas = getAccountMetas(transaction, instruction);
-    const accounts = getPositionAccounts(decodedInstruction, accountMetas);
+    const accounts = getPositionAccounts(decodedInstruction, accountMetas, hawksightAccount);
     const tokenTransfers = getTokenTransfers(transaction, index);
     const activeBinId = tokenTransfers.length > 0 ? getActiveBinId(transaction, index) : null;
     const removalBps = instructionType == "remove" ? getRemovalBps(decodedInstruction) : null;
     return {
+        isHawksight: Boolean(hawksightAccount),
         signature: transaction.transaction.signatures[0],
         slot: transaction.slot,
         blockTime: transaction.blockTime,
@@ -109,7 +112,7 @@ function getMeteoraInstructionData(transaction, instruction) {
         removalBps,
     };
 }
-function getPositionAccounts(decodedInstruction, accountMetas) {
+function getPositionAccounts(decodedInstruction, accountMetas, hawksightAccount) {
     try {
         const { accounts } = INSTRUCTION_CODER.format(decodedInstruction, accountMetas);
         const positionAccount = accounts.find((account) => account.name == "Position");
@@ -117,7 +120,7 @@ function getPositionAccounts(decodedInstruction, accountMetas) {
         const lbPairAccount = accounts.find((account) => account.name == "Lb Pair");
         const lbPair = lbPairAccount.pubkey.toBase58();
         const senderAccount = accounts.find((account) => account.name == "Sender" || account.name == "Owner");
-        const sender = senderAccount.pubkey.toBase58();
+        const sender = hawksightAccount || senderAccount.pubkey.toBase58();
         const tokenMintXAccount = accounts.find((account) => account.name == "Token X Mint");
         return {
             position,
@@ -131,25 +134,25 @@ function getPositionAccounts(decodedInstruction, accountMetas) {
                 return {
                     position: accountMetas[1].pubkey.toBase58(),
                     lbPair: accountMetas[2].pubkey.toBase58(),
-                    sender: accountMetas[3].pubkey.toBase58(),
+                    sender: hawksightAccount || accountMetas[3].pubkey.toBase58(),
                 };
             case "addLiquidityOneSide":
                 return {
                     position: accountMetas[0].pubkey.toBase58(),
                     lbPair: accountMetas[1].pubkey.toBase58(),
-                    sender: accountMetas[8].pubkey.toBase58(),
+                    sender: hawksightAccount || accountMetas[8].pubkey.toBase58(),
                 };
             case "addLiquidityByWeight":
                 return {
                     position: accountMetas[0].pubkey.toBase58(),
                     lbPair: accountMetas[1].pubkey.toBase58(),
-                    sender: accountMetas[11].pubkey.toBase58(),
+                    sender: hawksightAccount || accountMetas[11].pubkey.toBase58(),
                 };
         }
         return {
             position: accountMetas[0].pubkey.toBase58(),
             lbPair: accountMetas[1].pubkey.toBase58(),
-            sender: accountMetas[11].pubkey.toBase58(),
+            sender: hawksightAccount || accountMetas[11].pubkey.toBase58(),
         };
     }
 }

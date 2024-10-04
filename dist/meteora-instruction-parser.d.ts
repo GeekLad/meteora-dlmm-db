@@ -8,6 +8,7 @@ interface MeteoraDlmmAccounts {
     sender: string;
 }
 export interface MeteoraDlmmInstruction {
+    isHawksight: boolean;
     signature: string;
     slot: number;
     blockTime: number;
