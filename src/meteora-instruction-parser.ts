@@ -18,7 +18,10 @@ import {
   getTokenTransfers,
   type TokenTransferInfo,
 } from "./solana-transaction-utils";
-import { getHawksightAccount } from "./hawksight-parser";
+import {
+  getHawksightAccount,
+  getHawksightTokenTransfers,
+} from "./hawksight-parser";
 
 export type MeteoraDlmmInstructionType =
   | "open"
@@ -199,7 +202,9 @@ function getMeteoraInstructionData(
     accountMetas,
     hawksightAccount,
   );
-  const tokenTransfers = getTokenTransfers(transaction, index);
+  const tokenTransfers = !hawksightAccount
+    ? getTokenTransfers(transaction, index)
+    : getHawksightTokenTransfers(transaction, instruction, index);
   const activeBinId =
     tokenTransfers.length > 0 ? getActiveBinId(transaction, index) : null;
   const removalBps =

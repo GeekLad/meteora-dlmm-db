@@ -2,7 +2,7 @@ import { IDL, LBCLMM_PROGRAM_IDS } from "@meteora-ag/dlmm";
 import { BorshEventCoder, BorshInstructionCoder, } from "@project-serum/anchor";
 import { base64, bs58 } from "@project-serum/anchor/dist/cjs/utils/bytes";
 import { getInstructionIndex, getAccountMetas, getTokenTransfers, } from "./solana-transaction-utils";
-import { getHawksightAccount } from "./hawksight-parser";
+import { getHawksightAccount, getHawksightTokenTransfers, } from "./hawksight-parser";
 const INSTRUCTION_MAP = new Map([
     ["initializePosition", "open"],
     ["addLiquidity", "add"],
@@ -96,7 +96,9 @@ function getMeteoraInstructionData(transaction, instruction, hawksightAccount) {
     const instructionType = INSTRUCTION_MAP.get(decodedInstruction.name);
     const accountMetas = getAccountMetas(transaction, instruction);
     const accounts = getPositionAccounts(decodedInstruction, accountMetas, hawksightAccount);
-    const tokenTransfers = getTokenTransfers(transaction, index);
+    const tokenTransfers = !hawksightAccount
+        ? getTokenTransfers(transaction, index)
+        : getHawksightTokenTransfers(transaction, instruction, index);
     const activeBinId = tokenTransfers.length > 0 ? getActiveBinId(transaction, index) : null;
     const removalBps = instructionType == "remove" ? getRemovalBps(decodedInstruction) : null;
     return {

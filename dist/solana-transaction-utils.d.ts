@@ -1,7 +1,24 @@
-import { type AccountMeta, type ConfirmedSignatureInfo, type ConnectionConfig, type ParsedTransactionWithMeta, type PartiallyDecodedInstruction } from "@solana/web3.js";
+import { type AccountMeta, type ConfirmedSignatureInfo, type ConnectionConfig, type ParsedInstruction, type ParsedTransactionWithMeta, type PartiallyDecodedInstruction } from "@solana/web3.js";
 export interface TokenTransferInfo {
     mint: string;
     amount: number;
+}
+export interface ParsedTransferInstruction extends ParsedInstruction {
+    parsed: {
+        info: {
+            authority: string;
+            destination: string;
+            mint: string;
+            source: string;
+            tokenAmount: {
+                amount: string;
+                decimals: number;
+                uiAmount: number;
+                uiAmountString: string;
+            };
+        };
+        type: "transferChecked";
+    };
 }
 export declare function getInstructionIndex(transaction: ParsedTransactionWithMeta, instruction: PartiallyDecodedInstruction): number;
 export declare function getAccountMetas(transaction: ParsedTransactionWithMeta, instruction: PartiallyDecodedInstruction): AccountMeta[];

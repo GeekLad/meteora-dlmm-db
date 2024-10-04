@@ -17,7 +17,7 @@ export interface TokenTransferInfo {
   amount: number;
 }
 
-interface ParsedTransferInstruction extends ParsedInstruction {
+export interface ParsedTransferInstruction extends ParsedInstruction {
   parsed: {
     info: {
       authority: string;
