@@ -8,9 +8,12 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import MeteoraDlmmDb from "./meteora-dlmm-db";
+import { delay } from "./util";
 let Dexie;
 let db;
 let table;
+let saving = false;
+let newData;
 function init() {
     return __awaiter(this, void 0, void 0, function* () {
         if (!Dexie) {
@@ -29,13 +32,23 @@ function init() {
 // Write function
 export function writeData(data) {
     return __awaiter(this, void 0, void 0, function* () {
+        if (saving) {
+            newData = data;
+            return;
+        }
+        saving = true;
+        newData = data;
         yield init();
-        yield table.put({ id: 1, data });
+        yield table.put({ id: 1, newData });
+        saving = false;
     });
 }
 // Read function
 export function readData() {
     return __awaiter(this, void 0, void 0, function* () {
+        while (saving) {
+            yield delay(50);
+        }
         yield init();
         const record = yield table.get(1);
         return MeteoraDlmmDb.create(record === null || record === void 0 ? void 0 : record.data);

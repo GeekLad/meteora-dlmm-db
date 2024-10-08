@@ -1,8 +1,11 @@
 import MeteoraDlmmDb from "./meteora-dlmm-db";
+import { delay } from "./util";
 
 let Dexie: any;
 let db: any;
 let table: any;
+let saving = false;
+let newData: Uint8Array;
 
 async function init() {
   if (!Dexie) {
@@ -20,13 +23,23 @@ async function init() {
 
 // Write function
 export async function writeData(data: Uint8Array): Promise<void> {
+  if (saving) {
+    newData = data;
+    return;
+  }
+  saving = true;
+  newData = data;
   await init();
 
-  await table.put({ id: 1, data });
+  await table.put({ id: 1, newData });
+  saving = false;
 }
 
 // Read function
 export async function readData(): Promise<MeteoraDlmmDb> {
+  while (saving) {
+    await delay(50);
+  }
   await init();
   const record = await table.get(1);
 
