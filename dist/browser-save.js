@@ -30,7 +30,7 @@ function init() {
 export function writeData(data) {
     return __awaiter(this, void 0, void 0, function* () {
         yield init();
-        yield Promise.all([table.put({ id: 1, data }), table.put({ id: 2, data })]);
+        yield table.put({ id: 1, data });
     });
 }
 // Read function

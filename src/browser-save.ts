@@ -22,7 +22,7 @@ async function init() {
 export async function writeData(data: Uint8Array): Promise<void> {
   await init();
 
-  await Promise.all([table.put({ id: 1, data }), table.put({ id: 2, data })]);
+  await table.put({ id: 1, data });
 }
 
 // Read function

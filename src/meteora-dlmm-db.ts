@@ -90,6 +90,7 @@ export default class MeteoraDlmmDb {
   private _downloaders: Map<string, MeteoraDlmmDownloader> = new Map();
   private _saving = false;
   private _queue: (() => any)[] = [];
+  private delaySave = false;
 
   private constructor() {}
 
@@ -1355,6 +1356,9 @@ export default class MeteoraDlmmDb {
   }
 
   async save(): Promise<void> {
+    if (this.delaySave) {
+      await this._waitUntilReady();
+    }
     this._saving = true;
     const data = this._db.export();
     this._db.close();
@@ -1364,5 +1368,11 @@ export default class MeteoraDlmmDb {
       ? await import("./browser-save")
       : await import("./node-save");
     await writeData(data);
+  }
+
+  private async _waitUntilReady() {
+    while (this.delaySave) {
+      await delay(10);
+    }
   }
 }

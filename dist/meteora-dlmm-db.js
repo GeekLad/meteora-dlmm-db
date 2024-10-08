@@ -9,6 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 import initSqlJs from "sql.js";
 import MeteoraDlmmDownloader from "./meteora-dlmm-downloader";
+import { delay } from "./util";
 function isBrowser() {
     if (typeof window !== "undefined" && window.document) {
         return true;
@@ -37,6 +38,7 @@ export default class MeteoraDlmmDb {
         this._downloaders = new Map();
         this._saving = false;
         this._queue = [];
+        this.delaySave = false;
     }
     static create(data) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -1251,6 +1253,9 @@ export default class MeteoraDlmmDb {
     }
     save() {
         return __awaiter(this, void 0, void 0, function* () {
+            if (this.delaySave) {
+                yield this._waitUntilReady();
+            }
             this._saving = true;
             const data = this._db.export();
             this._db.close();
@@ -1259,6 +1264,13 @@ export default class MeteoraDlmmDb {
                 ? yield import("./browser-save")
                 : yield import("./node-save");
             yield writeData(data);
+        });
+    }
+    _waitUntilReady() {
+        return __awaiter(this, void 0, void 0, function* () {
+            while (this.delaySave) {
+                yield delay(50);
+            }
         });
     }
 }
