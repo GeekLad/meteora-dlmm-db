@@ -1253,6 +1253,9 @@ export default class MeteoraDlmmDb {
     }
     save() {
         return __awaiter(this, void 0, void 0, function* () {
+            if (this._saving) {
+                return;
+            }
             this._saving = true;
             if (this.delaySave) {
                 yield this._waitUntilReady();

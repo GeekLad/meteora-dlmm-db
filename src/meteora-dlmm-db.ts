@@ -1356,6 +1356,9 @@ export default class MeteoraDlmmDb {
   }
 
   async save(): Promise<void> {
+    if (this._saving) {
+      return;
+    }
     this._saving = true;
     if (this.delaySave) {
       await this._waitUntilReady();
