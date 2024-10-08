@@ -6,6 +6,7 @@ import {
 } from "./meteora-dlmm-api";
 import { type TokenMeta } from "./jupiter-token-list-api";
 import MeteoraDlmmDownloader from "./meteora-dlmm-downloader";
+import { delay } from "./util";
 
 interface MeteoraDlmmDbSchema {
   [column: string]:
@@ -79,6 +80,8 @@ export default class MeteoraDlmmDb {
   private _markCompleteStatement!: Statement;
   private _getTransactions!: Statement;
   private _downloaders: Map<string, MeteoraDlmmDownloader> = new Map();
+  private _saving = false;
+  private _queue: (() => any)[] = [];
 
   private constructor() {}
 
@@ -100,9 +103,9 @@ export default class MeteoraDlmmDb {
   private async _init(data?: ArrayLike<number> | Buffer | null) {
     const sql = await initSql();
     this._db = new sql.Database(data);
-      this._createTables();
-      this._addInitialData();
+    this._createTables();
     if (!data) {
+      this._addInitialData();
     }
     this._createStatements();
   }
@@ -946,197 +949,6 @@ export default class MeteoraDlmmDb {
     `);
   }
 
-  addInstruction(instruction: MeteoraDlmmInstruction) {
-    const {
-      signature: $signature,
-      slot: $slot,
-      blockTime: $block_time,
-      isHawksight,
-      instructionName: $instruction_name,
-      instructionType: $instruction_type,
-      accounts,
-      activeBinId: $active_bin_id,
-      removalBps: $removal_bps,
-    } = instruction;
-    const $is_hawksight = Number(isHawksight);
-    const {
-      position: $position_address,
-      lbPair: $pair_address,
-      sender: $owner_address,
-    } = accounts;
-    this._addInstructionStatement.run({
-      $signature,
-      $slot,
-      $block_time,
-      $is_hawksight,
-      $instruction_name,
-      $instruction_type,
-      $position_address,
-      $pair_address,
-      $owner_address,
-      $active_bin_id,
-      $removal_bps,
-    });
-    this.addTransfers(instruction);
-  }
-
-  addTransfers(instruction: MeteoraDlmmInstruction) {
-    const {
-      signature: $signature,
-      instructionName: $instruction_name,
-      accounts,
-    } = instruction;
-    const { position: $position_address } = accounts;
-    const transfers = instruction.tokenTransfers;
-    transfers.forEach((transfer) => {
-      const { mint: $mint, amount: $amount } = transfer;
-      this._addTransferStatement.run({
-        $signature,
-        $instruction_name,
-        $position_address,
-        $mint,
-        $amount,
-      });
-    });
-  }
-
-  addPair(pair: MeteoraDlmmPairData) {
-    const {
-      lbPair: $pair_address,
-      name: $name,
-      mintX: $mint_x,
-      mintY: $mint_y,
-      binStep: $bin_step,
-      baseFeeBps: $base_fee_bps,
-    } = pair;
-    this._addPairStatement.run({
-      $pair_address,
-      $name,
-      $mint_x,
-      $mint_y,
-      $bin_step,
-      $base_fee_bps,
-    });
-  }
-
-  addToken(token: TokenMeta) {
-    const { address: $address, decimals: $decimals } = token;
-    try {
-      this._addTokenStatement.run({
-        $address,
-        $name: token.name || null,
-        $symbol: token.symbol || null,
-        $decimals,
-        $logo: token.logoURI || null,
-      });
-    } catch (err) {
-      console.error(err);
-      throw err;
-    }
-  }
-
-  addUsdTransactions(
-    position_address: string,
-    transactions: MeteoraPositionTransactions,
-  ) {
-    const $position_address = position_address;
-    transactions.deposits.forEach((deposit) => {
-      const $instruction_type = "add";
-      const {
-        tx_id: $signature,
-        token_x_usd_amount,
-        token_y_usd_amount,
-      } = deposit;
-      this._addUsdXStatement.run({
-        $instruction_type,
-        $amount: token_x_usd_amount,
-        $signature,
-        $position_address,
-      });
-      this._addUsdYStatement.run({
-        $instruction_type,
-        $amount: token_y_usd_amount,
-        $signature,
-        $position_address,
-      });
-    });
-    transactions.withdrawals.forEach((withdrawal) => {
-      const $instruction_type = "remove";
-      const {
-        tx_id: $signature,
-        token_x_usd_amount,
-        token_y_usd_amount,
-      } = withdrawal;
-      this._addUsdXStatement.run({
-        $instruction_type,
-        $amount: token_x_usd_amount,
-        $signature,
-        $position_address,
-      });
-      this._addUsdYStatement.run({
-        $instruction_type,
-        $amount: token_y_usd_amount,
-        $signature,
-        $position_address,
-      });
-    });
-    transactions.fees.forEach((fee) => {
-      const $instruction_type = "claim";
-      const { tx_id: $signature, token_x_usd_amount, token_y_usd_amount } = fee;
-      this._addUsdXStatement.run({
-        $instruction_type,
-        $amount: token_x_usd_amount,
-        $signature,
-        $position_address,
-      });
-      this._addUsdYStatement.run({
-        $instruction_type,
-        $amount: token_y_usd_amount,
-        $signature,
-        $position_address,
-      });
-    });
-    this._fillMissingUsdStatement.run({
-      $position_address: position_address,
-    });
-  }
-
-  setOldestSignature(
-    $account_address: string,
-    $oldest_block_time: number,
-    $oldest_signature: string,
-  ) {
-    this._setOldestSignature.run({
-      $account_address,
-      $oldest_block_time,
-      $oldest_signature,
-    });
-  }
-
-  markComplete($account_address: string) {
-    this._markCompleteStatement.run({ $account_address });
-  }
-
-  isComplete(account_address: string): boolean {
-    const completed = this._db
-      .exec(
-        `
-      SELECT 
-        account_address
-      FROM
-        completed_accounts
-      WHERE
-        account_address = '${account_address}'
-        AND completed
-    `,
-      )
-      .map((result) => result.values)
-      .flat()
-      .flat();
-
-    return completed.length == 1;
-  }
-
   download(
     endpoint: string,
     account: string,
@@ -1172,34 +984,254 @@ export default class MeteoraDlmmDb {
     return downloader;
   }
 
-  getMissingPairs(): string[] {
-    return this._db
-      .exec(`SELECT * FROM v_missing_pairs`)
-      .map((result) => result.values)
-      .flat()
-      .flat() as string[];
+  async addInstruction(instruction: MeteoraDlmmInstruction) {
+    await this._queueDbCall(() => {
+      const {
+        signature: $signature,
+        slot: $slot,
+        blockTime: $block_time,
+        isHawksight,
+        instructionName: $instruction_name,
+        instructionType: $instruction_type,
+        accounts,
+        activeBinId: $active_bin_id,
+        removalBps: $removal_bps,
+      } = instruction;
+      const $is_hawksight = Number(isHawksight);
+      const {
+        position: $position_address,
+        lbPair: $pair_address,
+        sender: $owner_address,
+      } = accounts;
+      this._addInstructionStatement.run({
+        $signature,
+        $slot,
+        $block_time,
+        $is_hawksight,
+        $instruction_name,
+        $instruction_type,
+        $position_address,
+        $pair_address,
+        $owner_address,
+        $active_bin_id,
+        $removal_bps,
+      });
+      this.addTransfers(instruction);
+    });
   }
 
-  getMissingTokens(): string[] {
-    return this._db
-      .exec(`SELECT * FROM v_missing_tokens`)
-      .map((result) => result.values)
-      .flat()
-      .flat() as string[];
+  async addTransfers(instruction: MeteoraDlmmInstruction) {
+    await this._queueDbCall(() => {
+      const {
+        signature: $signature,
+        instructionName: $instruction_name,
+        accounts,
+      } = instruction;
+      const { position: $position_address } = accounts;
+      const transfers = instruction.tokenTransfers;
+      transfers.forEach((transfer) => {
+        const { mint: $mint, amount: $amount } = transfer;
+        this._addTransferStatement.run({
+          $signature,
+          $instruction_name,
+          $position_address,
+          $mint,
+          $amount,
+        });
+      });
+    });
   }
 
-  getMissingUsd(): string[] {
-    return this._db
-      .exec(`SELECT * FROM v_missing_usd`)
-      .map((result) => result.values)
-      .flat()
-      .flat() as string[];
+  async addPair(pair: MeteoraDlmmPairData) {
+    await this._queueDbCall(() => {
+      const {
+        lbPair: $pair_address,
+        name: $name,
+        mintX: $mint_x,
+        mintY: $mint_y,
+        binStep: $bin_step,
+        baseFeeBps: $base_fee_bps,
+      } = pair;
+      this._addPairStatement.run({
+        $pair_address,
+        $name,
+        $mint_x,
+        $mint_y,
+        $bin_step,
+        $base_fee_bps,
+      });
+    });
   }
 
-  getMostRecentSignature(owner_address: string): string | undefined {
-    const signature = this._db
-      .exec(
-        `
+  async addToken(token: TokenMeta) {
+    await this._queueDbCall(() => {
+      const { address: $address, decimals: $decimals } = token;
+      try {
+        this._addTokenStatement.run({
+          $address,
+          $name: token.name || null,
+          $symbol: token.symbol || null,
+          $decimals,
+          $logo: token.logoURI || null,
+        });
+      } catch (err) {
+        console.error(err);
+        throw err;
+      }
+    });
+  }
+
+  async addUsdTransactions(
+    position_address: string,
+    transactions: MeteoraPositionTransactions,
+  ) {
+    await this._queueDbCall(() => {
+      const $position_address = position_address;
+      transactions.deposits.forEach((deposit) => {
+        const $instruction_type = "add";
+        const {
+          tx_id: $signature,
+          token_x_usd_amount,
+          token_y_usd_amount,
+        } = deposit;
+        this._addUsdXStatement.run({
+          $instruction_type,
+          $amount: token_x_usd_amount,
+          $signature,
+          $position_address,
+        });
+        this._addUsdYStatement.run({
+          $instruction_type,
+          $amount: token_y_usd_amount,
+          $signature,
+          $position_address,
+        });
+      });
+      transactions.withdrawals.forEach((withdrawal) => {
+        const $instruction_type = "remove";
+        const {
+          tx_id: $signature,
+          token_x_usd_amount,
+          token_y_usd_amount,
+        } = withdrawal;
+        this._addUsdXStatement.run({
+          $instruction_type,
+          $amount: token_x_usd_amount,
+          $signature,
+          $position_address,
+        });
+        this._addUsdYStatement.run({
+          $instruction_type,
+          $amount: token_y_usd_amount,
+          $signature,
+          $position_address,
+        });
+      });
+      transactions.fees.forEach((fee) => {
+        const $instruction_type = "claim";
+        const {
+          tx_id: $signature,
+          token_x_usd_amount,
+          token_y_usd_amount,
+        } = fee;
+        this._addUsdXStatement.run({
+          $instruction_type,
+          $amount: token_x_usd_amount,
+          $signature,
+          $position_address,
+        });
+        this._addUsdYStatement.run({
+          $instruction_type,
+          $amount: token_y_usd_amount,
+          $signature,
+          $position_address,
+        });
+      });
+      this._fillMissingUsdStatement.run({
+        $position_address: position_address,
+      });
+    });
+  }
+
+  async setOldestSignature(
+    $account_address: string,
+    $oldest_block_time: number,
+    $oldest_signature: string,
+  ) {
+    await this._queueDbCall(() => {
+      this._setOldestSignature.run({
+        $account_address,
+        $oldest_block_time,
+        $oldest_signature,
+      });
+    });
+  }
+
+  async markComplete($account_address: string) {
+    await this._queueDbCall(() => {
+      this._markCompleteStatement.run({ $account_address });
+    });
+  }
+
+  async isComplete(account_address: string): Promise<boolean> {
+    return await this._queueDbCall(() => {
+      const completed = this._db
+        .exec(
+          `
+      SELECT 
+        account_address
+      FROM
+        completed_accounts
+      WHERE
+        account_address = '${account_address}'
+        AND completed
+    `,
+        )
+        .map((result) => result.values)
+        .flat()
+        .flat();
+
+      return completed.length == 1;
+    });
+  }
+
+  async getMissingPairs(): Promise<string[]> {
+    return this._queueDbCall(() => {
+      return this._db
+        .exec(`SELECT * FROM v_missing_pairs`)
+        .map((result) => result.values)
+        .flat()
+        .flat() as string[];
+    });
+  }
+
+  async getMissingTokens(): Promise<string[]> {
+    return this._queueDbCall(() => {
+      return this._db
+        .exec(`SELECT * FROM v_missing_tokens`)
+        .map((result) => result.values)
+        .flat()
+        .flat() as string[];
+    });
+  }
+
+  async getMissingUsd(): Promise<string[]> {
+    return await this._queueDbCall(() => {
+      return this._db
+        .exec(`SELECT * FROM v_missing_usd`)
+        .map((result) => result.values)
+        .flat()
+        .flat() as string[];
+    });
+  }
+
+  async getMostRecentSignature(
+    owner_address: string,
+  ): Promise<string | undefined> {
+    return await this._queueDbCall(() => {
+      const signature = this._db
+        .exec(
+          `
         SELECT 
           signature
         FROM
@@ -1210,21 +1242,23 @@ export default class MeteoraDlmmDb {
           block_time DESC
         LIMIT 1        
       `,
-      )
-      .map((result) => result.values)
-      .flat()
-      .flat();
+        )
+        .map((result) => result.values)
+        .flat()
+        .flat();
 
-    if (signature.length == 0) {
-      return undefined;
-    }
-    return signature[0] as string;
+      if (signature.length == 0) {
+        return undefined;
+      }
+      return signature[0] as string;
+    });
   }
 
-  getOldestSignature(owner_address: string): string | undefined {
-    const signature = this._db
-      .exec(
-        `
+  async getOldestSignature(owner_address: string): Promise<string | undefined> {
+    return await this._queueDbCall(() => {
+      const signature = this._db
+        .exec(
+          `
           WITH signatures AS (
             SELECT 
               block_time, signature
@@ -1248,18 +1282,19 @@ export default class MeteoraDlmmDb {
             block_time 
           LIMIT 1    
       `,
-      )
-      .map((result) => result.values)
-      .flat()
-      .flat();
+        )
+        .map((result) => result.values)
+        .flat()
+        .flat();
 
-    if (signature.length == 0) {
-      return undefined;
-    }
-    return signature[0] as string;
+      if (signature.length == 0) {
+        return undefined;
+      }
+      return signature[0] as string;
+    });
   }
 
-  getTransactions(): MeteoraDlmmDbTransactions[] {
+  async getTransactions(): Promise<MeteoraDlmmDbTransactions[]> {
     return this._getAll(this._getTransactions);
   }
 
@@ -1269,17 +1304,50 @@ export default class MeteoraDlmmDb {
     await this.save();
   }
 
-  private _getAll<MeteoraDlmmDbSchema>(
+  private async _getAll<MeteoraDlmmDbSchema>(
     statement: Statement,
-  ): MeteoraDlmmDbSchema[] {
-    const output: MeteoraDlmmDbSchema[] = [];
-    while (statement.step())
-      output.push(statement.getAsObject() as MeteoraDlmmDbSchema);
-    statement.reset();
-    return output;
+  ): Promise<MeteoraDlmmDbSchema[]> {
+    return await this._queueDbCall(() => {
+      const output: MeteoraDlmmDbSchema[] = [];
+      while (statement.step())
+        output.push(statement.getAsObject() as MeteoraDlmmDbSchema);
+      statement.reset();
+      return output;
+    });
+  }
+
+  private _queueDbCall<T>(fn: () => T): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      this._queue.push(async () => {
+        try {
+          const result = fn();
+          resolve(result);
+        } catch (error) {
+          reject(error);
+        }
+      });
+      this._processQueue();
+    });
+  }
+
+  private async _processQueue() {
+    if (this._saving || this._queue.length == 0) {
+      return;
+    }
+    this._saving = true;
+    while (this._queue.length > 0) {
+      const fn = this._queue.shift();
+      if (fn) {
+        fn();
+      }
+    }
+    await this.save();
+    this._saving = false;
+    this._processQueue();
   }
 
   async save(): Promise<void> {
+    this._saving = true;
     const data = this._db.export();
     this._db.close();
     await this._init(data);
