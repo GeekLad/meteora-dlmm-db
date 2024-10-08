@@ -81,5 +81,6 @@ export default class MeteoraDlmmDb {
     private _processQueue;
     save(): Promise<void>;
     private _waitUntilReady;
+    waitForSave(): Promise<void>;
 }
 export {};
