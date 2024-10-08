@@ -27,6 +27,8 @@ function initSql() {
 export default class MeteoraDlmmDb {
     constructor() {
         this._downloaders = new Map();
+        this._saving = false;
+        this._queue = [];
     }
     static create(data) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -48,8 +50,8 @@ export default class MeteoraDlmmDb {
             const sql = yield initSql();
             this._db = new sql.Database(data);
             this._createTables();
-            this._addInitialData();
             if (!data) {
+                this._addInitialData();
             }
             this._createStatements();
         });
@@ -890,147 +892,6 @@ export default class MeteoraDlmmDb {
       ON CONFLICT DO NOTHING
     `);
     }
-    addInstruction(instruction) {
-        const { signature: $signature, slot: $slot, blockTime: $block_time, isHawksight, instructionName: $instruction_name, instructionType: $instruction_type, accounts, activeBinId: $active_bin_id, removalBps: $removal_bps, } = instruction;
-        const $is_hawksight = Number(isHawksight);
-        const { position: $position_address, lbPair: $pair_address, sender: $owner_address, } = accounts;
-        this._addInstructionStatement.run({
-            $signature,
-            $slot,
-            $block_time,
-            $is_hawksight,
-            $instruction_name,
-            $instruction_type,
-            $position_address,
-            $pair_address,
-            $owner_address,
-            $active_bin_id,
-            $removal_bps,
-        });
-        this.addTransfers(instruction);
-    }
-    addTransfers(instruction) {
-        const { signature: $signature, instructionName: $instruction_name, accounts, } = instruction;
-        const { position: $position_address } = accounts;
-        const transfers = instruction.tokenTransfers;
-        transfers.forEach((transfer) => {
-            const { mint: $mint, amount: $amount } = transfer;
-            this._addTransferStatement.run({
-                $signature,
-                $instruction_name,
-                $position_address,
-                $mint,
-                $amount,
-            });
-        });
-    }
-    addPair(pair) {
-        const { lbPair: $pair_address, name: $name, mintX: $mint_x, mintY: $mint_y, binStep: $bin_step, baseFeeBps: $base_fee_bps, } = pair;
-        this._addPairStatement.run({
-            $pair_address,
-            $name,
-            $mint_x,
-            $mint_y,
-            $bin_step,
-            $base_fee_bps,
-        });
-    }
-    addToken(token) {
-        const { address: $address, decimals: $decimals } = token;
-        try {
-            this._addTokenStatement.run({
-                $address,
-                $name: token.name || null,
-                $symbol: token.symbol || null,
-                $decimals,
-                $logo: token.logoURI || null,
-            });
-        }
-        catch (err) {
-            console.error(err);
-            throw err;
-        }
-    }
-    addUsdTransactions(position_address, transactions) {
-        const $position_address = position_address;
-        transactions.deposits.forEach((deposit) => {
-            const $instruction_type = "add";
-            const { tx_id: $signature, token_x_usd_amount, token_y_usd_amount, } = deposit;
-            this._addUsdXStatement.run({
-                $instruction_type,
-                $amount: token_x_usd_amount,
-                $signature,
-                $position_address,
-            });
-            this._addUsdYStatement.run({
-                $instruction_type,
-                $amount: token_y_usd_amount,
-                $signature,
-                $position_address,
-            });
-        });
-        transactions.withdrawals.forEach((withdrawal) => {
-            const $instruction_type = "remove";
-            const { tx_id: $signature, token_x_usd_amount, token_y_usd_amount, } = withdrawal;
-            this._addUsdXStatement.run({
-                $instruction_type,
-                $amount: token_x_usd_amount,
-                $signature,
-                $position_address,
-            });
-            this._addUsdYStatement.run({
-                $instruction_type,
-                $amount: token_y_usd_amount,
-                $signature,
-                $position_address,
-            });
-        });
-        transactions.fees.forEach((fee) => {
-            const $instruction_type = "claim";
-            const { tx_id: $signature, token_x_usd_amount, token_y_usd_amount } = fee;
-            this._addUsdXStatement.run({
-                $instruction_type,
-                $amount: token_x_usd_amount,
-                $signature,
-                $position_address,
-            });
-            this._addUsdYStatement.run({
-                $instruction_type,
-                $amount: token_y_usd_amount,
-                $signature,
-                $position_address,
-            });
-        });
-        this._fillMissingUsdStatement.run({
-            $position_address: position_address,
-        });
-    }
-    setOldestSignature($account_address, $oldest_block_time, $oldest_signature) {
-        this._setOldestSignature.run({
-            $account_address,
-            $oldest_block_time,
-            $oldest_signature,
-        });
-    }
-    markComplete($account_address) {
-        this._markCompleteStatement.run({ $account_address });
-    }
-    isComplete(account_address) {
-        const completed = this._db
-            .exec(`
-      SELECT 
-        account_address
-      FROM
-        completed_accounts
-      WHERE
-        account_address = '${account_address}'
-        AND completed
-    `)
-            .map((result) => result.values)
-            .flat()
-            .flat();
-        return completed.length == 1;
-    }
     download(endpoint, account, callbacks) {
         if (this._downloaders.has(account)) {
             return this._downloaders.get(account);
@@ -1056,30 +917,217 @@ export default class MeteoraDlmmDb {
         this._downloaders.set(account, downloader);
         return downloader;
     }
+    addInstruction(instruction) {
+        return __awaiter(this, void 0, void 0, function* () {
+            yield this._queueDbCall(() => {
+                const { signature: $signature, slot: $slot, blockTime: $block_time, isHawksight, instructionName: $instruction_name, instructionType: $instruction_type, accounts, activeBinId: $active_bin_id, removalBps: $removal_bps, } = instruction;
+                const $is_hawksight = Number(isHawksight);
+                const { position: $position_address, lbPair: $pair_address, sender: $owner_address, } = accounts;
+                this._addInstructionStatement.run({
+                    $signature,
+                    $slot,
+                    $block_time,
+                    $is_hawksight,
+                    $instruction_name,
+                    $instruction_type,
+                    $position_address,
+                    $pair_address,
+                    $owner_address,
+                    $active_bin_id,
+                    $removal_bps,
+                });
+                this.addTransfers(instruction);
+            });
+        });
+    }
+    addTransfers(instruction) {
+        return __awaiter(this, void 0, void 0, function* () {
+            yield this._queueDbCall(() => {
+                const { signature: $signature, instructionName: $instruction_name, accounts, } = instruction;
+                const { position: $position_address } = accounts;
+                const transfers = instruction.tokenTransfers;
+                transfers.forEach((transfer) => {
+                    const { mint: $mint, amount: $amount } = transfer;
+                    this._addTransferStatement.run({
+                        $signature,
+                        $instruction_name,
+                        $position_address,
+                        $mint,
+                        $amount,
+                    });
+                });
+            });
+        });
+    }
+    addPair(pair) {
+        return __awaiter(this, void 0, void 0, function* () {
+            yield this._queueDbCall(() => {
+                const { lbPair: $pair_address, name: $name, mintX: $mint_x, mintY: $mint_y, binStep: $bin_step, baseFeeBps: $base_fee_bps, } = pair;
+                this._addPairStatement.run({
+                    $pair_address,
+                    $name,
+                    $mint_x,
+                    $mint_y,
+                    $bin_step,
+                    $base_fee_bps,
+                });
+            });
+        });
+    }
+    addToken(token) {
+        return __awaiter(this, void 0, void 0, function* () {
+            yield this._queueDbCall(() => {
+                const { address: $address, decimals: $decimals } = token;
+                try {
+                    this._addTokenStatement.run({
+                        $address,
+                        $name: token.name || null,
+                        $symbol: token.symbol || null,
+                        $decimals,
+                        $logo: token.logoURI || null,
+                    });
+                }
+                catch (err) {
+                    console.error(err);
+                    throw err;
+                }
+            });
+        });
+    }
+    addUsdTransactions(position_address, transactions) {
+        return __awaiter(this, void 0, void 0, function* () {
+            yield this._queueDbCall(() => {
+                const $position_address = position_address;
+                transactions.deposits.forEach((deposit) => {
+                    const $instruction_type = "add";
+                    const { tx_id: $signature, token_x_usd_amount, token_y_usd_amount, } = deposit;
+                    this._addUsdXStatement.run({
+                        $instruction_type,
+                        $amount: token_x_usd_amount,
+                        $signature,
+                        $position_address,
+                    });
+                    this._addUsdYStatement.run({
+                        $instruction_type,
+                        $amount: token_y_usd_amount,
+                        $signature,
+                        $position_address,
+                    });
+                });
+                transactions.withdrawals.forEach((withdrawal) => {
+                    const $instruction_type = "remove";
+                    const { tx_id: $signature, token_x_usd_amount, token_y_usd_amount, } = withdrawal;
+                    this._addUsdXStatement.run({
+                        $instruction_type,
+                        $amount: token_x_usd_amount,
+                        $signature,
+                        $position_address,
+                    });
+                    this._addUsdYStatement.run({
+                        $instruction_type,
+                        $amount: token_y_usd_amount,
+                        $signature,
+                        $position_address,
+                    });
+                });
+                transactions.fees.forEach((fee) => {
+                    const $instruction_type = "claim";
+                    const { tx_id: $signature, token_x_usd_amount, token_y_usd_amount, } = fee;
+                    this._addUsdXStatement.run({
+                        $instruction_type,
+                        $amount: token_x_usd_amount,
+                        $signature,
+                        $position_address,
+                    });
+                    this._addUsdYStatement.run({
+                        $instruction_type,
+                        $amount: token_y_usd_amount,
+                        $signature,
+                        $position_address,
+                    });
+                });
+                this._fillMissingUsdStatement.run({
+                    $position_address: position_address,
+                });
+            });
+        });
+    }
+    setOldestSignature($account_address, $oldest_block_time, $oldest_signature) {
+        return __awaiter(this, void 0, void 0, function* () {
+            yield this._queueDbCall(() => {
+                this._setOldestSignature.run({
+                    $account_address,
+                    $oldest_block_time,
+                    $oldest_signature,
+                });
+            });
+        });
+    }
+    markComplete($account_address) {
+        return __awaiter(this, void 0, void 0, function* () {
+            yield this._queueDbCall(() => {
+                this._markCompleteStatement.run({ $account_address });
+            });
+        });
+    }
+    isComplete(account_address) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return yield this._queueDbCall(() => {
+                const completed = this._db
+                    .exec(`
+      SELECT 
+        account_address
+      FROM
+        completed_accounts
+      WHERE
+        account_address = '${account_address}'
+        AND completed
+    `)
+                    .map((result) => result.values)
+                    .flat()
+                    .flat();
+                return completed.length == 1;
+            });
+        });
+    }
     getMissingPairs() {
-        return this._db
-            .exec(`SELECT * FROM v_missing_pairs`)
-            .map((result) => result.values)
-            .flat()
-            .flat();
+        return __awaiter(this, void 0, void 0, function* () {
+            return this._queueDbCall(() => {
+                return this._db
+                    .exec(`SELECT * FROM v_missing_pairs`)
+                    .map((result) => result.values)
+                    .flat()
+                    .flat();
+            });
+        });
     }
     getMissingTokens() {
-        return this._db
-            .exec(`SELECT * FROM v_missing_tokens`)
-            .map((result) => result.values)
-            .flat()
-            .flat();
+        return __awaiter(this, void 0, void 0, function* () {
+            return this._queueDbCall(() => {
+                return this._db
+                    .exec(`SELECT * FROM v_missing_tokens`)
+                    .map((result) => result.values)
+                    .flat()
+                    .flat();
+            });
+        });
     }
     getMissingUsd() {
-        return this._db
-            .exec(`SELECT * FROM v_missing_usd`)
-            .map((result) => result.values)
-            .flat()
-            .flat();
+        return __awaiter(this, void 0, void 0, function* () {
+            return yield this._queueDbCall(() => {
+                return this._db
+                    .exec(`SELECT * FROM v_missing_usd`)
+                    .map((result) => result.values)
+                    .flat()
+                    .flat();
+            });
+        });
     }
     getMostRecentSignature(owner_address) {
-        const signature = this._db
-            .exec(`
+        return __awaiter(this, void 0, void 0, function* () {
+            return yield this._queueDbCall(() => {
+                const signature = this._db
+                    .exec(`
         SELECT 
           signature
         FROM
@@ -1090,17 +1138,21 @@ export default class MeteoraDlmmDb {
           block_time DESC
         LIMIT 1        
       `)
-            .map((result) => result.values)
-            .flat()
-            .flat();
-        if (signature.length == 0) {
-            return undefined;
-        }
-        return signature[0];
+                    .map((result) => result.values)
+                    .flat()
+                    .flat();
+                if (signature.length == 0) {
+                    return undefined;
+                }
+                return signature[0];
+            });
+        });
     }
     getOldestSignature(owner_address) {
-        const signature = this._db
-            .exec(`
+        return __awaiter(this, void 0, void 0, function* () {
+            return yield this._queueDbCall(() => {
+                const signature = this._db
+                    .exec(`
           WITH signatures AS (
             SELECT 
               block_time, signature
@@ -1124,16 +1176,20 @@ export default class MeteoraDlmmDb {
             block_time 
           LIMIT 1    
       `)
-            .map((result) => result.values)
-            .flat()
-            .flat();
-        if (signature.length == 0) {
-            return undefined;
-        }
-        return signature[0];
+                    .map((result) => result.values)
+                    .flat()
+                    .flat();
+                if (signature.length == 0) {
+                    return undefined;
+                }
+                return signature[0];
+            });
+        });
     }
     getTransactions() {
-        return this._getAll(this._getTransactions);
+        return __awaiter(this, void 0, void 0, function* () {
+            return this._getAll(this._getTransactions);
+        });
     }
     cancelDownload(account) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -1144,14 +1200,50 @@ export default class MeteoraDlmmDb {
         });
     }
     _getAll(statement) {
-        const output = [];
-        while (statement.step())
-            output.push(statement.getAsObject());
-        statement.reset();
-        return output;
+        return __awaiter(this, void 0, void 0, function* () {
+            return yield this._queueDbCall(() => {
+                const output = [];
+                while (statement.step())
+                    output.push(statement.getAsObject());
+                statement.reset();
+                return output;
+            });
+        });
+    }
+    _queueDbCall(fn) {
+        return new Promise((resolve, reject) => {
+            this._queue.push(() => __awaiter(this, void 0, void 0, function* () {
+                try {
+                    const result = fn();
+                    resolve(result);
+                }
+                catch (error) {
+                    reject(error);
+                }
+            }));
+            this._processQueue();
+        });
+    }
+    _processQueue() {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (this._saving || this._queue.length == 0) {
+                return;
+            }
+            this._saving = true;
+            while (this._queue.length > 0) {
+                const fn = this._queue.shift();
+                if (fn) {
+                    fn();
+                }
+            }
+            yield this.save();
+            this._saving = false;
+            this._processQueue();
+        });
     }
     save() {
         return __awaiter(this, void 0, void 0, function* () {
+            this._saving = true;
             const data = this._db.export();
             this._db.close();
             yield this._init(data);

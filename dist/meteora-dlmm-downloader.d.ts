@@ -38,9 +38,9 @@ export default class MeteoraDownloader {
     private _oldestBlocktime;
     get downloadComplete(): boolean;
     get positionsComplete(): boolean;
-    get stats(): MeteoraDlmmDownloaderStats;
     constructor(db: MeteoraDlmmDb, endpoint: string, account: string, callbacks?: MeteoraDlmmDownloaderCallbacks);
     private _init;
+    stats(): Promise<MeteoraDlmmDownloaderStats>;
     private _loadInstructions;
     private _onNewSignaturesReceived;
     private _fetchMissingPairs;
