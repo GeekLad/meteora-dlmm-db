@@ -31,7 +31,7 @@ export async function writeData(data: Uint8Array): Promise<void> {
   newData = data;
   await init();
 
-  await table.put({ id: 1, newData });
+  await table.put({ id: 1, data: newData });
   saving = false;
 }
 

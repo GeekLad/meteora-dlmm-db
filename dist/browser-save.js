@@ -39,7 +39,7 @@ export function writeData(data) {
         saving = true;
         newData = data;
         yield init();
-        yield table.put({ id: 1, newData });
+        yield table.put({ id: 1, data: newData });
         saving = false;
     });
 }
