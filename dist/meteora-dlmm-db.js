@@ -1253,10 +1253,10 @@ export default class MeteoraDlmmDb {
     }
     save() {
         return __awaiter(this, void 0, void 0, function* () {
+            this._saving = true;
             if (this.delaySave) {
                 yield this._waitUntilReady();
             }
-            this._saving = true;
             const data = this._db.export();
             this._db.close();
             yield this._init(data);
