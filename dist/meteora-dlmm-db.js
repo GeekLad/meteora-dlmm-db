@@ -9,7 +9,15 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 import initSqlJs from "sql.js";
 import MeteoraDlmmDownloader from "./meteora-dlmm-downloader";
-const isBrowser = new Function("try {return this===window;}catch(e){ return false;}");
+function isBrowser() {
+    if (typeof window !== "undefined" && window.document) {
+        return true;
+    }
+    if (typeof self !== "undefined" && self.self === self) {
+        return true;
+    }
+    return false;
+}
 let SQL;
 function initSql() {
     return __awaiter(this, void 0, void 0, function* () {
