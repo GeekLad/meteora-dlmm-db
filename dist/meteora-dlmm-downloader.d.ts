@@ -26,6 +26,7 @@ export default class MeteoraDownloader {
     private _fetchingUsd;
     private _onDone?;
     private _isDone;
+    private _finished;
     private _startTime;
     private _accountSignatureCount;
     private _positionTransactionIds;

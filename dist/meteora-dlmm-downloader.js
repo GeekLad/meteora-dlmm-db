@@ -27,6 +27,7 @@ export default class MeteoraDownloader {
         this._fetchingMissingTokens = false;
         this._fetchingUsd = false;
         this._isDone = false;
+        this._finished = false;
         this._accountSignatureCount = 0;
         this._positionTransactionIds = new Set();
         this._positionAddresses = new Set();
@@ -228,7 +229,8 @@ export default class MeteoraDownloader {
     }
     _finish() {
         return __awaiter(this, void 0, void 0, function* () {
-            if (this.downloadComplete && !this._fullyCancelled) {
+            if (this.downloadComplete && !this._fullyCancelled && !this._finished) {
+                this._finished = true;
                 if (!this._transactionDownloadCancelled) {
                     yield this._db.markComplete(this._account);
                 }

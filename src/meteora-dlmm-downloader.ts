@@ -38,6 +38,7 @@ export default class MeteoraDownloader {
   private _fetchingUsd = false;
   private _onDone?: (...args: any[]) => any;
   private _isDone = false;
+  private _finished = false;
   private _startTime: number;
   private _accountSignatureCount = 0;
   private _positionTransactionIds: Set<string> = new Set();
@@ -271,7 +272,8 @@ export default class MeteoraDownloader {
   }
 
   private async _finish() {
-    if (this.downloadComplete && !this._fullyCancelled) {
+    if (this.downloadComplete && !this._fullyCancelled && !this._finished) {
+      this._finished = true;
       if (!this._transactionDownloadCancelled) {
         await this._db.markComplete(this._account);
       }
