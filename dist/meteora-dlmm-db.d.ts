@@ -50,7 +50,7 @@ export default class MeteoraDlmmDb {
     private _downloaders;
     private _saving;
     private _queue;
-    private delaySave;
+    delaySave: boolean;
     private constructor();
     static create(data?: ArrayLike<number> | Buffer | null): Promise<MeteoraDlmmDb>;
     static load(): Promise<MeteoraDlmmDb>;

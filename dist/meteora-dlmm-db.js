@@ -1269,7 +1269,7 @@ export default class MeteoraDlmmDb {
     _waitUntilReady() {
         return __awaiter(this, void 0, void 0, function* () {
             while (this.delaySave) {
-                yield delay(50);
+                yield delay(10);
             }
         });
     }

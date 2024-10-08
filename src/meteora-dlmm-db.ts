@@ -90,7 +90,7 @@ export default class MeteoraDlmmDb {
   private _downloaders: Map<string, MeteoraDlmmDownloader> = new Map();
   private _saving = false;
   private _queue: (() => any)[] = [];
-  private delaySave = false;
+  delaySave = false;
 
   private constructor() {}
 
