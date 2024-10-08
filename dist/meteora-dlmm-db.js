@@ -47,9 +47,9 @@ export default class MeteoraDlmmDb {
         return __awaiter(this, void 0, void 0, function* () {
             const sql = yield initSql();
             this._db = new sql.Database(data);
+            this._createTables();
+            this._addInitialData();
             if (!data) {
-                this._createTables();
-                this._addInitialData();
             }
             this._createStatements();
         });
@@ -191,7 +191,8 @@ export default class MeteoraDlmmDb {
       ------------------
       -- Transactions --
       ------------------
-      CREATE VIEW IF NOT EXISTS v_transactions AS
+      DROP VIEW IF EXISTS v_transactions;
+      CREATE VIEW v_transactions AS
       WITH instructions_with_active_bin_id_groups AS (
         SELECT
           i.block_time,
@@ -390,7 +391,7 @@ export default class MeteoraDlmmDb {
           prices
       ),
       transactions AS (
-	      SELECT
+	      SELECT DISTINCT
           block_time,
           is_hawksight,
           signature,
@@ -406,8 +407,8 @@ export default class MeteoraDlmmDb {
           quote_decimals,
           quote_logo,
           is_inverted,
-          MAX(removal_bps) removal_bps,
-          MAX(position_is_open) position_is_open,
+          MAX(removal_bps) OVER (PARTITION BY signature, position_address) removal_bps,
+          MAX(position_is_open) OVER (PARTITION BY signature, position_address) position_is_open,
           price,
           COALESCE(
             SUM(
@@ -415,7 +416,7 @@ export default class MeteoraDlmmDb {
                 WHEN instruction_type = 'claim' THEN price * base_amount + quote_amount 
                 ELSE 0 
               END
-            ),
+            ) OVER (PARTITION BY signature, position_address),
             0
           ) fee_amount,
           COALESCE(
@@ -424,7 +425,7 @@ export default class MeteoraDlmmDb {
                 WHEN instruction_type = 'add' THEN price * base_amount + quote_amount
                 ELSE 0
               END
-            ),
+            ) OVER (PARTITION BY signature, position_address),
             0
           ) deposit,
           COALESCE(
@@ -433,7 +434,7 @@ export default class MeteoraDlmmDb {
                 WHEN instruction_type = 'remove' THEN price * base_amount + quote_amount
                 ELSE 0
               END
-            ),
+            ) OVER (PARTITION BY signature, position_address),
             0
           ) withdrawal,
           COALESCE(
@@ -442,7 +443,7 @@ export default class MeteoraDlmmDb {
                 WHEN instruction_type = 'claim' THEN usd_amount 
                 ELSE 0 
               END
-            ),
+            ) OVER (PARTITION BY signature, position_address),
             0
           ) usd_fee_amount,
           COALESCE(
@@ -450,7 +451,7 @@ export default class MeteoraDlmmDb {
               CASE 
                 WHEN instruction_type = 'add' THEN usd_amount		
               END
-            ),
+            ) OVER (PARTITION BY signature, position_address),
             0
           ) usd_deposit,
           COALESCE(
@@ -458,18 +459,11 @@ export default class MeteoraDlmmDb {
               CASE 
                 WHEN instruction_type = 'remove' THEN usd_amount
               END
-            ),
+            ) OVER (PARTITION BY signature, position_address),
             0
           ) usd_withdrawal          
       FROM
         prices
-      GROUP BY
-        block_time,
-        is_hawksight,
-        signature,
-        position_address,
-        owner_address,
-        pair_address
       ),
       balance_change_groups AS (
 	      SELECT 
@@ -478,7 +472,7 @@ export default class MeteoraDlmmDb {
 	    	FROM 
 	    		transactions
       ),
-      balances AS (
+      unadjusted_balances AS (
 	      SELECT
 	      	block_time,
           is_hawksight,
@@ -498,6 +492,8 @@ export default class MeteoraDlmmDb {
 	      	removal_bps,
 	        position_is_open,
 	      	price,
+	      	ROW_NUMBER() OVER (PARTITION BY position_address, position_group_id ORDER BY block_time) position_group_seq_id,
+	      	position_group_id,
 	        MAX(block_time) OVER (PARTITION BY position_address ORDER BY block_time)
 	        -MIN(block_time) OVER (PARTITION BY position_address ORDER BY block_time) position_seconds,	      	
 	        CASE 
@@ -540,6 +536,51 @@ export default class MeteoraDlmmDb {
 	      	balance_change_groups
 	    	ORDER BY
 	    		position_address, block_time
+      ),
+      balances as (
+	      SELECT 
+	      	b1.block_time,
+          b1.is_hawksight,
+	      	b1.signature,
+	      	b1.position_address,
+	      	b1.owner_address,
+	      	b1.pair_address,
+          b1.base_mint,
+          b1.base_symbol,
+          b1.base_decimals,
+          b1.base_logo,
+          b1.quote_mint,
+          b1.quote_symbol,
+          b1.quote_decimals,
+          b1.quote_logo,
+          b1.is_inverted,          
+	      	b1.removal_bps,
+	        b1.position_is_open,
+	      	b1.price,
+	      	b1.position_group_seq_id,
+	      	b1.position_group_id,
+	        b1.position_seconds,	      	
+	        b1.position_balance_seconds,
+	      	b1.fee_amount,
+	      	b1.deposit,
+	      	b1.withdrawal,
+	      	CASE 
+	      		WHEN b1.position_group_seq_id = 1 THEN b1.position_balance
+	      		ELSE b1.position_balance + COALESCE(b2.position_balance, 0)
+	      	END position_balance,	      	
+	      	b1.usd_fee_amount,
+	      	b1.usd_deposit,
+	      	b1.usd_withdrawal,
+	      	b1.usd_position_balance
+	      FROM
+	      	unadjusted_balances b1
+	      	LEFT JOIN unadjusted_balances b2 ON
+	      		b2.position_address = b1.position_address
+	      		AND b2.position_group_id = b1.position_group_id
+				WHERE
+					b2.position_group_seq_id = 1
+	    	ORDER BY
+	    		b1.position_address, b1.block_time      
       ),
       pnl AS (
 	      SELECT
