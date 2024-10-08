@@ -100,9 +100,9 @@ export default class MeteoraDlmmDb {
   private async _init(data?: ArrayLike<number> | Buffer | null) {
     const sql = await initSql();
     this._db = new sql.Database(data);
-    if (!data) {
       this._createTables();
       this._addInitialData();
+    if (!data) {
     }
     this._createStatements();
   }
