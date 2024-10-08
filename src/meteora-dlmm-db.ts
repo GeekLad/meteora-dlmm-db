@@ -49,9 +49,17 @@ export interface MeteoraDlmmDbTransactions extends MeteoraDlmmDbSchema {
   usd_pnl: number;
 }
 
-const isBrowser = new Function(
-  "try {return this===window;}catch(e){ return false;}",
-);
+function isBrowser() {
+  if (typeof window !== "undefined" && window.document) {
+    return true;
+  }
+
+  if (typeof self !== "undefined" && self.self === self) {
+    return true;
+  }
+
+  return false;
+}
 
 let SQL: SqlJsStatic;
 async function initSql() {
