@@ -577,7 +577,7 @@ export default class MeteoraDlmmDb {
 	      	b1.deposit,
 	      	b1.withdrawal,
 	      	CASE 
-	      		WHEN b1.position_group_seq_id = 1 THEN b1.position_balance
+	      		WHEN b1.position_group_seq_id = 1 or b1.position_group_id = 0 THEN b1.position_balance
 	      		ELSE b1.position_balance + COALESCE(b2.position_balance, 0)
 	      	END position_balance,	      	
 	      	b1.usd_fee_amount,
@@ -592,7 +592,7 @@ export default class MeteoraDlmmDb {
 				WHERE
 					b2.position_group_seq_id = 1
 	    	ORDER BY
-	    		b1.position_address, b1.block_time      
+	    		b1.position_address, b1.block_time
       ),
       pnl AS (
 	      SELECT
@@ -614,16 +614,20 @@ export default class MeteoraDlmmDb {
 	      	removal_bps,
 	        position_is_open,
 	      	price,
+	      	position_group_seq_id,
+	      	position_group_id,
 	      	fee_amount,
 	      	deposit,
 	      	withdrawal,
-	        position_balance - SUM(deposit-withdrawal) OVER (PARTITION BY position_address ORDER BY block_time) cumulative_position_impermanent_loss,
-	        SUM(fee_amount) OVER (PARTITION BY position_address ORDER BY block_time) + position_balance - SUM(deposit-withdrawal) OVER (PARTITION BY position_address ORDER BY block_time) cumulative_pnl,
+	      	position_balance,
+	        position_balance + SUM(withdrawal-deposit) OVER (PARTITION BY position_address ORDER BY block_time) cumulative_position_impermanent_loss,
+	        position_balance + SUM(fee_amount) OVER (PARTITION BY position_address ORDER BY block_time) + SUM(withdrawal-deposit) OVER (PARTITION BY position_address ORDER BY block_time) cumulative_pnl,
 	      	usd_fee_amount,
 	      	usd_deposit,
 	      	usd_withdrawal,
-	        usd_position_balance - SUM(usd_deposit-usd_withdrawal) OVER (PARTITION BY position_address ORDER BY block_time) usd_cumulative_position_impermanent_loss,
-	        SUM(usd_fee_amount) OVER (PARTITION BY position_address ORDER BY block_time) + usd_position_balance - SUM(usd_deposit-usd_withdrawal) OVER (PARTITION BY position_address ORDER BY block_time) usd_cumulative_pnl
+	      	usd_position_balance,
+	        usd_position_balance + SUM(usd_withdrawal-usd_deposit) OVER (PARTITION BY position_address ORDER BY block_time) usd_cumulative_position_impermanent_loss,
+	        usd_position_balance + SUM(usd_fee_amount) OVER (PARTITION BY position_address ORDER BY block_time) + SUM(usd_withdrawal-usd_deposit) OVER (PARTITION BY position_address ORDER BY block_time) usd_cumulative_pnl
 				FROM balances
       )
       SELECT 
@@ -648,6 +652,7 @@ export default class MeteoraDlmmDb {
       	fee_amount,
       	deposit,
       	withdrawal,
+      	position_balance,
         cumulative_position_impermanent_loss - COALESCE(LAG(cumulative_position_impermanent_loss) OVER (PARTITION BY position_address ORDER BY block_time), 0) impermanent_loss,
         cumulative_pnl - COALESCE(LAG(cumulative_pnl) OVER (PARTITION BY position_address ORDER BY block_time), 0) pnl,
       	usd_fee_amount,
