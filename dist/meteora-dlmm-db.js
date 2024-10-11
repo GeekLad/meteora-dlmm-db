@@ -11,12 +11,16 @@ import initSqlJs from "sql.js";
 import MeteoraDlmmDownloader from "./meteora-dlmm-downloader";
 import { delay } from "./util";
 function isBrowser() {
-    if (typeof window !== "undefined" && window.document) {
+    // Check for browser window
+    if (typeof window !== "undefined" && typeof window.document !== "undefined") {
         return true;
     }
-    if (typeof self !== "undefined" && self.self === self) {
+    // Check for Web Worker
+    // @ts-ignore
+    if (typeof self !== "undefined" && typeof self.importScripts === "function") {
         return true;
     }
+    // If neither of the above, it's likely Node.js or another environment
     return false;
 }
 let SQL;
@@ -240,6 +244,7 @@ export default class MeteoraDlmmDb {
           SUM(CASE WHEN i.active_bin_id IS NOT NULL THEN 1 ELSE 0 END) OVER (PARTITION BY p.pair_address ORDER BY i.block_time) prev_group_id,
           SUM(CASE WHEN i.active_bin_id IS NOT NULL THEN 1 ELSE 0 END) OVER (PARTITION BY p.pair_address ORDER BY i.block_time DESC) next_group_id,
           COALESCE(i.removal_bps, 0) removal_bps,
+          i.instruction_name = "removeLiquiditySingleSide" is_one_sided_removal,
           MAX(CASE WHEN i.instruction_type = 'close' THEN 1 END) OVER (PARTITION BY i.position_address RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) IS NULL position_is_open,
           COALESCE(ttx.amount, 0) x_amount,
           COALESCE(tty.amount, 0) y_amount,
@@ -309,6 +314,7 @@ export default class MeteoraDlmmDb {
             END			
           ) active_bin_id,
           removal_bps,
+          is_one_sided_removal,
           position_is_open,
           x_amount,
           y_amount,
@@ -360,6 +366,7 @@ export default class MeteoraDlmmDb {
           END quote_logo,
           is_inverted,
           removal_bps,
+          is_one_sided_removal,
           position_is_open,
           CASE 
             WHEN NOT is_inverted THEN POWER(1.0 + 1.0 * bin_step / 10000, active_bin_id) * POWER(10, x_decimals - y_decimals)
@@ -395,6 +402,7 @@ export default class MeteoraDlmmDb {
           quote_logo,
           is_inverted,
           removal_bps,
+          is_one_sided_removal,
           position_is_open,
           price,
           price * base_amount + quote_amount amount,
@@ -420,6 +428,7 @@ export default class MeteoraDlmmDb {
           quote_logo,
           is_inverted,
           MAX(removal_bps) OVER (PARTITION BY signature, position_address) removal_bps,
+          MAX(is_one_sided_removal) OVER (PARTITION BY signature, position_address) is_one_sided_removal,
           MAX(position_is_open) OVER (PARTITION BY signature, position_address) position_is_open,
           price,
           COALESCE(
@@ -502,9 +511,12 @@ export default class MeteoraDlmmDb {
           quote_logo,
           is_inverted,          
 	      	removal_bps,
+          is_one_sided_removal,
 	        position_is_open,
 	      	price,
+	      	MAX(is_one_sided_removal) OVER (PARTITION BY position_address, position_group_id ORDER BY block_time) group_has_one_sided_removal,
 	      	ROW_NUMBER() OVER (PARTITION BY position_address, position_group_id ORDER BY block_time) position_group_seq_id,
+	      	COUNT(*) OVER (PARTITION BY position_address, position_group_id ORDER BY block_time ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) position_group_count,
 	      	position_group_id,
 	        MAX(block_time) OVER (PARTITION BY position_address ORDER BY block_time)
 	        -MIN(block_time) OVER (PARTITION BY position_address ORDER BY block_time) position_seconds,	      	
@@ -567,9 +579,12 @@ export default class MeteoraDlmmDb {
           b1.quote_logo,
           b1.is_inverted,          
 	      	b1.removal_bps,
+          b1.is_one_sided_removal,	      	
 	        b1.position_is_open,
 	      	b1.price,
+	      	b1.group_has_one_sided_removal,
 	      	b1.position_group_seq_id,
+	      	b1.position_group_count,
 	      	b1.position_group_id,
 	        b1.position_seconds,	      	
 	        b1.position_balance_seconds,
@@ -577,20 +592,31 @@ export default class MeteoraDlmmDb {
 	      	b1.deposit,
 	      	b1.withdrawal,
 	      	CASE 
-	      		WHEN b1.position_group_seq_id = 1 or b1.position_group_id = 0 THEN b1.position_balance
+		      	WHEN b1.position_group_id = 0 THEN b1.position_balance
+	      		WHEN b1.position_group_seq_id = 1 AND NOT b1.group_has_one_sided_removal THEN b1.position_balance
+	      		WHEN b1.group_has_one_sided_removal THEN COALESCE(b3.position_balance, 0) - SUM(b1.withdrawal-b1.deposit) OVER (PARTITION BY b1.position_address, b1.position_group_id ORDER BY b1.block_time)
 	      		ELSE b1.position_balance + COALESCE(b2.position_balance, 0)
 	      	END position_balance,	      	
 	      	b1.usd_fee_amount,
 	      	b1.usd_deposit,
 	      	b1.usd_withdrawal,
-	      	b1.usd_position_balance
+	      	CASE 
+		      	WHEN b1.position_group_id = 0 THEN b1.usd_position_balance
+	      		WHEN b1.position_group_seq_id = 1 AND NOT b1.group_has_one_sided_removal THEN b1.usd_position_balance
+	      		WHEN b1.group_has_one_sided_removal THEN COALESCE(b3.usd_position_balance, 0) - SUM(b1.usd_withdrawal-b1.usd_deposit) OVER (PARTITION BY b1.position_address, b1.position_group_id ORDER BY b1.block_time)
+	      		ELSE b1.usd_position_balance + COALESCE(b2.usd_position_balance, 0)
+	      	END usd_position_balance
 	      FROM
 	      	unadjusted_balances b1
 	      	LEFT JOIN unadjusted_balances b2 ON
 	      		b2.position_address = b1.position_address
 	      		AND b2.position_group_id = b1.position_group_id
+	      	LEFT JOIN unadjusted_balances b3 ON
+	      		b3.position_address = b1.position_address
+	      		AND b3.position_group_id = b1.position_group_id - 1
 				WHERE
 					b2.position_group_seq_id = 1
+					AND b3.position_group_seq_id = b3.position_group_count
 	    	ORDER BY
 	    		b1.position_address, b1.block_time
       ),
@@ -612,9 +638,12 @@ export default class MeteoraDlmmDb {
           quote_logo,
           is_inverted,
 	      	removal_bps,
+          is_one_sided_removal,
 	        position_is_open,
 	      	price,
+	      	group_has_one_sided_removal,
 	      	position_group_seq_id,
+	      	position_group_count,
 	      	position_group_id,
 	      	fee_amount,
 	      	deposit,
@@ -647,6 +676,7 @@ export default class MeteoraDlmmDb {
         quote_logo,
         is_inverted,
       	removal_bps,
+        is_one_sided_removal,	      	
         position_is_open,
       	price,
       	fee_amount,
@@ -658,6 +688,7 @@ export default class MeteoraDlmmDb {
       	usd_fee_amount,
       	usd_deposit,
       	usd_withdrawal,
+      	usd_position_balance,
         usd_cumulative_position_impermanent_loss - COALESCE(LAG(usd_cumulative_position_impermanent_loss) OVER (PARTITION BY position_address ORDER BY block_time), 0) usd_impermanent_loss,
         usd_cumulative_pnl - COALESCE(LAG(usd_cumulative_pnl) OVER (PARTITION BY position_address ORDER BY block_time), 0) usd_pnl
       FROM pnl
