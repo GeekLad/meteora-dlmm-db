@@ -611,9 +611,11 @@ export default class MeteoraDlmmDb {
 	      	LEFT JOIN unadjusted_balances b2 ON
 	      		b2.position_address = b1.position_address
 	      		AND b2.position_group_id = b1.position_group_id
+						AND b2.position_group_seq_id = 1
 	      	LEFT JOIN unadjusted_balances b3 ON
 	      		b3.position_address = b1.position_address
 	      		AND b3.position_group_id = b1.position_group_id - 1
+						AND b3.position_group_seq_id = b3.position_group_count
 				WHERE
 					b2.position_group_seq_id = 1
 					AND b3.position_group_seq_id = b3.position_group_count
