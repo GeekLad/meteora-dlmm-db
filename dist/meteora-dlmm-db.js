@@ -616,9 +616,6 @@ export default class MeteoraDlmmDb {
 	      		b3.position_address = b1.position_address
 	      		AND b3.position_group_id = b1.position_group_id - 1
 						AND b3.position_group_seq_id = b3.position_group_count
-				WHERE
-					b2.position_group_seq_id = 1
-					AND b3.position_group_seq_id = b3.position_group_count
 	    	ORDER BY
 	    		b1.position_address, b1.block_time
       ),
