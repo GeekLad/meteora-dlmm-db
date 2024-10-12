@@ -483,7 +483,7 @@ export default class MeteoraDlmmDb {
           MAX(removal_bps) OVER (PARTITION BY signature, position_address) removal_bps,
           MAX(is_one_sided_removal) OVER (PARTITION BY signature, position_address) is_one_sided_removal,
           MAX(position_is_open) OVER (PARTITION BY signature, position_address) position_is_open,
-          price,
+          MIN(price) OVER (PARTITION BY signature, position_address ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) price,
           COALESCE(
             SUM(
               CASE 
