@@ -269,6 +269,8 @@ export default class MeteoraDlmmDb {
             AND tty.position_address = i.position_address
             AND tty.instruction_name = i.instruction_name 
             AND tty.mint = y.address
+          WHERE
+          	COALESCE(ttx.amount, 0) + COALESCE(tty.amount, 0) > 0
         ORDER BY
             p.pair_address, i.block_time
       ),
@@ -430,7 +432,7 @@ export default class MeteoraDlmmDb {
           MAX(removal_bps) OVER (PARTITION BY signature, position_address) removal_bps,
           MAX(is_one_sided_removal) OVER (PARTITION BY signature, position_address) is_one_sided_removal,
           MAX(position_is_open) OVER (PARTITION BY signature, position_address) position_is_open,
-          MIN(price) OVER (PARTITION BY signature, position_address ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) price,
+          price,
           COALESCE(
             SUM(
               CASE 
