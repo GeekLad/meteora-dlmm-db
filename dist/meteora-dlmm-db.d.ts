@@ -46,7 +46,7 @@ export default class MeteoraDlmmDb {
     private _fillMissingUsdStatement;
     private _setOldestSignature;
     private _markCompleteStatement;
-    private _getTransactions;
+    private _getAllTransactions;
     private _downloaders;
     private _saving;
     private _queue;
@@ -74,7 +74,8 @@ export default class MeteoraDlmmDb {
     getMissingUsd(): Promise<string[]>;
     getMostRecentSignature(owner_address: string): Promise<string | undefined>;
     getOldestSignature(owner_address: string): Promise<string | undefined>;
-    getTransactions(): Promise<MeteoraDlmmDbTransactions[]>;
+    getAllTransactions(): Promise<MeteoraDlmmDbTransactions[]>;
+    getOwnerTransactions(owner_address: string): Promise<MeteoraDlmmDbTransactions[]>;
     cancelDownload(account: string): Promise<void>;
     private _getAll;
     private _queueDbCall;

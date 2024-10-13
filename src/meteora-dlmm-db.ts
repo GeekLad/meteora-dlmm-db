@@ -90,7 +90,7 @@ export default class MeteoraDlmmDb {
   private _fillMissingUsdStatement!: Statement;
   private _setOldestSignature!: Statement;
   private _markCompleteStatement!: Statement;
-  private _getTransactions!: Statement;
+  private _getAllTransactions!: Statement;
   private _downloaders: Map<string, MeteoraDlmmDownloader> = new Map();
   private _saving = false;
   private _queue: (() => any)[] = [];
@@ -971,7 +971,7 @@ export default class MeteoraDlmmDb {
       	account_address = $account_address,
       	completed = 1
     `);
-    this._getTransactions = this._db.prepare(`
+    this._getAllTransactions = this._db.prepare(`
       SELECT * FROM v_transactions
     `);
   }
@@ -1340,8 +1340,24 @@ export default class MeteoraDlmmDb {
     });
   }
 
-  async getTransactions(): Promise<MeteoraDlmmDbTransactions[]> {
-    return this._getAll(this._getTransactions);
+  async getAllTransactions(): Promise<MeteoraDlmmDbTransactions[]> {
+    return this._getAll(this._getAllTransactions);
+  }
+
+  async getOwnerTransactions(
+    owner_address: string,
+  ): Promise<MeteoraDlmmDbTransactions[]> {
+    return this._queueDbCall(() => {
+      const result = this._db.exec(
+        `SELECT * FROM v_transactions where owner_address = '${owner_address}'`,
+      );
+      const columns = result[0].columns;
+      return result[0].values.map((row) => {
+        const result: { [key: string]: any } = {};
+        columns.forEach((key, i) => (result[key] = row[i]));
+        return result as MeteoraDlmmDbTransactions;
+      });
+    });
   }
 
   async cancelDownload(account: string) {

@@ -917,7 +917,7 @@ export default class MeteoraDlmmDb {
       	account_address = $account_address,
       	completed = 1
     `);
-        this._getTransactions = this._db.prepare(`
+        this._getAllTransactions = this._db.prepare(`
       SELECT * FROM v_transactions
     `);
     }
@@ -1233,9 +1233,22 @@ export default class MeteoraDlmmDb {
             });
         });
     }
-    getTransactions() {
+    getAllTransactions() {
         return __awaiter(this, void 0, void 0, function* () {
-            return this._getAll(this._getTransactions);
+            return this._getAll(this._getAllTransactions);
+        });
+    }
+    getOwnerTransactions(owner_address) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return this._queueDbCall(() => {
+                const result = this._db.exec(`SELECT * FROM v_transactions where owner_address = '${owner_address}'`);
+                const columns = result[0].columns;
+                return result[0].values.map((row) => {
+                    const result = {};
+                    columns.forEach((key, i) => (result[key] = row[i]));
+                    return result;
+                });
+            });
         });
     }
     cancelDownload(account) {
