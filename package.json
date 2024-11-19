@@ -1,6 +1,6 @@
 {
   "name": "@geeklad/meteora-dlmm-db",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "main": "dist/index.js",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -12,17 +12,17 @@
     "build": "bun run build/build-cache.ts && tsc"
   },
   "dependencies": {
-    "@meteora-ag/dlmm": "^1.1.4",
+    "@meteora-ag/dlmm": "^1.2.3",
     "@project-serum/anchor": "^0.26.0",
-    "@solana/spl-token": "^0.4.8",
-    "@solana/web3.js": "^1.95.3",
-    "dexie": "^4.0.8",
-    "sql.js": "^1.11.0"
+    "@solana/spl-token": "^0.4.9",
+    "@solana/web3.js": "^1.95.4",
+    "dexie": "^4.0.10",
+    "sql.js": "^1.12.0"
   },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/sql.js": "^1.4.9",
-    "typescript": "^5.5.4"
+    "typescript": "^5.6.3"
   },
   "type": "module"
 }
