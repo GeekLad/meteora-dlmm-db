@@ -322,8 +322,6 @@ export default class MeteoraDlmmDb {
               AND tty.position_address = i.position_address
               AND tty.instruction_name = i.instruction_name 
               AND tty.mint = y.address
-            WHERE
-              COALESCE(ttx.amount, 0) + COALESCE(tty.amount, 0) > 0
           ORDER BY
               p.pair_address, i.block_time
         ),
