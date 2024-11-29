@@ -14,8 +14,8 @@ export function chunkArray<T>(array: T[], size: number): T[][] {
 }
 
 export class ApiThrottleCache {
-  private _max: number;
-  private _interval: number;
+  max: number;
+  interval: number;
   private _cache: Map<
     ProcessingFunction<any, any>,
     Map<string | number | boolean, any>
@@ -32,8 +32,8 @@ export class ApiThrottleCache {
     cache?: Map<string | number | boolean, any>,
     processingFunction?: ProcessingFunction<any, any>,
   ) {
-    this._max = max;
-    this._interval = interval;
+    this.max = max;
+    this.interval = interval;
     if (cache && processingFunction) {
       this.addCache(cache, processingFunction);
     }
@@ -75,10 +75,10 @@ export class ApiThrottleCache {
   }
 
   private async _throttle(): Promise<void> {
-    while (this._requestWindow.length >= this._max) {
+    while (this._requestWindow.length >= this.max) {
       // Calculate wait time based on the oldest request in the window
       const oldestTime = this._requestWindow[0];
-      const timeToWait = this._interval - (Date.now() - oldestTime);
+      const timeToWait = this.interval - (Date.now() - oldestTime);
 
       if (timeToWait > 0) {
         // Wait for the calculated time
@@ -96,7 +96,7 @@ export class ApiThrottleCache {
   private get _requestWindow() {
     const now = Date.now();
 
-    return this._requestTimes.filter((time) => now - time < this._interval);
+    return this._requestTimes.filter((time) => now - time < this.interval);
   }
 
   private _getCachedResult<Input, Output>(
@@ -154,8 +154,8 @@ export class ApiThrottleCache {
 }
 
 export class ApiThrottle {
-  private _max: number;
-  private _interval: number;
+  max: number;
+  interval: number;
   private _requestTimes: number[] = [];
   private _activeRequests: Map<
     ProcessingFunction<any, any>,
@@ -163,8 +163,8 @@ export class ApiThrottle {
   > = new Map();
 
   constructor(max: number, interval: number) {
-    this._max = max;
-    this._interval = interval;
+    this.max = max;
+    this.interval = interval;
   }
 
   async processItem<Input, Output>(
@@ -190,10 +190,10 @@ export class ApiThrottle {
   }
 
   private async _throttle(): Promise<void> {
-    while (this._requestWindow.length >= this._max) {
+    while (this._requestWindow.length >= this.max) {
       // Calculate wait time based on the oldest request in the window
       const oldestTime = this._requestWindow[0];
-      const timeToWait = this._interval - (Date.now() - oldestTime);
+      const timeToWait = this.interval - (Date.now() - oldestTime);
 
       if (timeToWait > 0) {
         // Wait for the calculated time
@@ -211,7 +211,7 @@ export class ApiThrottle {
   private get _requestWindow() {
     const now = Date.now();
 
-    return this._requestTimes.filter((time) => now - time < this._interval);
+    return this._requestTimes.filter((time) => now - time < this.interval);
   }
 
   private _getKey<Input>(

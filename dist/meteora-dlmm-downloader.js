@@ -21,7 +21,8 @@ export default class MeteoraDownloader {
             !this._fetchingMissingPairs &&
             !this._fetchingMissingTokens);
     }
-    constructor(db, endpoint, account, callbacks) {
+    constructor(db, config) {
+        var _a;
         this._gotNewest = false;
         this._fetchingMissingPairs = false;
         this._fetchingMissingTokens = false;
@@ -38,43 +39,44 @@ export default class MeteoraDownloader {
         this._oldestSignature = "";
         this._oldestBlocktime = 0;
         this._db = db;
-        this._onDone = callbacks === null || callbacks === void 0 ? void 0 : callbacks.onDone;
+        this._onDone = (_a = config.callbacks) === null || _a === void 0 ? void 0 : _a.onDone;
         this._startTime = Date.now();
-        this._init(endpoint, account);
+        this._init(config);
     }
-    _init(endpoint, account) {
+    _init(config) {
         return __awaiter(this, void 0, void 0, function* () {
-            if (account.length >= 43 && account.length <= 44) {
-                this._account = account;
+            if (config.account.length >= 43 && config.account.length <= 44) {
+                this._account = config.account;
             }
             else {
-                const connection = new Connection(endpoint);
-                const signatureMatch = account.match(/\w+$/);
+                const connection = new Connection(config.endpoint, config);
+                const signatureMatch = config.account.match(/\w+$/);
                 if (!signatureMatch || (signatureMatch === null || signatureMatch === void 0 ? void 0 : signatureMatch.length) == 0) {
-                    throw new Error(`${account} is not a valid account or transaction signature`);
+                    throw new Error(`${config.account} is not a valid account or transaction signature`);
                 }
                 const signature = signatureMatch[0];
                 const parsedTransaction = yield connection.getParsedTransaction(signature);
                 const instructions = parseMeteoraInstructions(parsedTransaction);
                 if (instructions.length == 0) {
-                    throw new Error(`${account} is not a Meteora DLMM transaction`);
+                    throw new Error(`${config.account} is not a Meteora DLMM transaction`);
                 }
                 this._account = instructions[0].accounts.position;
             }
+            if (config.throttleParameters) {
+                if (config.throttleParameters.meteoraDlmm) {
+                    MeteoraDlmmApi.updateThrottleParameters(config.throttleParameters.meteoraDlmm);
+                }
+                if (config.throttleParameters.jupiterTokenList) {
+                    JupiterTokenListApi.updateThrottleParameters(config.throttleParameters.jupiterTokenList);
+                }
+            }
             this._isComplete = yield this._db.isComplete(this._account);
-            this._stream = ParsedTransactionStream.stream(endpoint, this._account, {
-                oldestDate: new Date("11/06/2023"),
-                oldestSignature: !this._isComplete
+            this._stream = ParsedTransactionStream.stream(Object.assign(Object.assign({}, config), { oldestDate: new Date("11/06/2023"), oldestSignature: !this._isComplete
                     ? yield this._db.getOldestSignature(this._account)
-                    : undefined,
-                mostRecentSignature: yield this._db.getMostRecentSignature(this._account),
-                onSignaturesReceived: (signatures) => this._onNewSignaturesReceived(signatures),
-                onParsedTransactionsReceived: (transactions) => this._loadInstructions(transactions),
-                onDone: () => {
+                    : undefined, mostRecentSignature: yield this._db.getMostRecentSignature(this._account), onSignaturesReceived: (signatures) => this._onNewSignaturesReceived(signatures), onParsedTransactionsReceived: (transactions) => this._loadInstructions(transactions), onDone: () => {
                     this._isDone = true;
                     this._fetchMissingPairs();
-                },
-            });
+                } }));
         });
     }
     stats() {
@@ -106,14 +108,14 @@ export default class MeteoraDownloader {
                     if (this._transactionDownloadCancelled) {
                         return this._fetchUsd();
                     }
-                    yield this._db.addInstruction(instruction);
                     instructionCount++;
+                    yield this._db.addInstruction(instruction);
                     this._positionAddresses.add(instruction.accounts.position);
                     this._positionTransactionIds.add(instruction.signature);
                 }));
             });
             const elapsed = Date.now() - start;
-            console.log(`Added ${instructionCount} instructions in ${elapsed}ms`);
+            console.log(`Downloaded ${instructionCount} instructions in ${elapsed}ms`);
             this._fetchMissingPairs();
         });
     }

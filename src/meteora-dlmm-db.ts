@@ -5,7 +5,9 @@ import {
   type MeteoraPositionTransactions,
 } from "./meteora-dlmm-api";
 import { type TokenMeta } from "./jupiter-token-list-api";
-import MeteoraDlmmDownloader from "./meteora-dlmm-downloader";
+import MeteoraDlmmDownloader, {
+  MeteoraDownloaderConfig,
+} from "./meteora-dlmm-downloader";
 import { delay } from "./util";
 
 interface MeteoraDlmmDbSchema {
@@ -993,38 +995,28 @@ export default class MeteoraDlmmDb {
     `);
   }
 
-  download(
-    endpoint: string,
-    account: string,
-    callbacks?: {
-      onDone?: (...args: any[]) => any;
-    },
-  ): MeteoraDlmmDownloader {
-    if (this._downloaders.has(account)) {
-      return this._downloaders.get(account)!;
+  download(config: MeteoraDownloaderConfig): MeteoraDlmmDownloader {
+    let callbacks = config.callbacks;
+    if (this._downloaders.has(config.account)) {
+      return this._downloaders.get(config.account)!;
     }
     if (callbacks) {
       if (callbacks.onDone) {
         const onDone = callbacks.onDone;
         callbacks.onDone = () => {
-          this._downloaders.delete(account);
+          this._downloaders.delete(config.account);
           onDone();
         };
       } else {
-        callbacks.onDone = () => this._downloaders.delete(account);
+        callbacks.onDone = () => this._downloaders.delete(config.account);
       }
     } else {
       callbacks = {
-        onDone: () => this._downloaders.delete(account),
+        onDone: () => this._downloaders.delete(config.account),
       };
     }
-    const downloader = new MeteoraDlmmDownloader(
-      this,
-      endpoint,
-      account,
-      callbacks,
-    );
-    this._downloaders.set(account, downloader);
+    const downloader = new MeteoraDlmmDownloader(this, config);
+    this._downloaders.set(config.account, downloader);
     return downloader;
   }
 

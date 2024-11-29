@@ -62,6 +62,11 @@ export class JupiterTokenListApi {
     this._getToken,
   );
 
+  static updateThrottleParameters(params: { max: number; interval: number }) {
+    JupiterTokenListApi._api.max = params.max;
+    JupiterTokenListApi._api.interval = params.interval;
+  }
+
   static getToken(address: string): Promise<TokenMeta | null> {
     return JupiterTokenListApi._api.processItem(address, this._getToken);
   }

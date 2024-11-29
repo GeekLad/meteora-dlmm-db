@@ -149,6 +149,11 @@ export class MeteoraDlmmApi {
     MeteoraDlmmApi._getDlmmPairData,
   );
 
+  static updateThrottleParameters(params: { max: number; interval: number }) {
+    MeteoraDlmmApi._meteoraApi.max = params.max;
+    MeteoraDlmmApi._meteoraApi.interval = params.interval;
+  }
+
   static getDlmmPairData(lbPair: string): Promise<MeteoraDlmmPairData> {
     return MeteoraDlmmApi._meteoraApi.processItem(
       lbPair,

@@ -46,6 +46,10 @@ export function getAllDlmmPairDetails() {
     });
 }
 export class MeteoraDlmmApi {
+    static updateThrottleParameters(params) {
+        MeteoraDlmmApi._meteoraApi.max = params.max;
+        MeteoraDlmmApi._meteoraApi.interval = params.interval;
+    }
     static getDlmmPairData(lbPair) {
         return MeteoraDlmmApi._meteoraApi.processItem(lbPair, MeteoraDlmmApi._getDlmmPairData);
     }

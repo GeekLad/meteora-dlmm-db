@@ -1,8 +1,8 @@
 export declare function delay(ms: number): Promise<unknown>;
 export declare function chunkArray<T>(array: T[], size: number): T[][];
 export declare class ApiThrottleCache {
-    private _max;
-    private _interval;
+    max: number;
+    interval: number;
     private _cache;
     private _requestTimes;
     private _activeRequests;
@@ -19,8 +19,8 @@ export declare class ApiThrottleCache {
     private _getActiveRequests;
 }
 export declare class ApiThrottle {
-    private _max;
-    private _interval;
+    max: number;
+    interval: number;
     private _requestTimes;
     private _activeRequests;
     constructor(max: number, interval: number);

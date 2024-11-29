@@ -1,5 +1,6 @@
 import {
   Connection,
+  ConnectionConfig,
   type ConfirmedSignatureInfo,
   type ParsedTransactionWithMeta,
 } from "@solana/web3.js";
@@ -8,10 +9,6 @@ import { MeteoraDlmmApi } from "./meteora-dlmm-api";
 import MeteoraDlmmDb from "./meteora-dlmm-db";
 import { parseMeteoraInstructions } from "./meteora-instruction-parser";
 import { ParsedTransactionStream } from "./solana-transaction-utils";
-
-interface MeteoraDlmmDownloaderCallbacks {
-  onDone?: (...args: any[]) => any;
-}
 
 export interface MeteoraDlmmDownloaderStats {
   downloadingComplete: boolean;
@@ -25,6 +22,29 @@ export interface MeteoraDlmmDownloaderStats {
   positionCount: number;
   usdPositionCount: number;
   missingUsd: number;
+}
+
+export interface MeteoraDownloaderConfig extends ConnectionConfig {
+  endpoint: string;
+  account: string;
+  callbacks?: {
+    onDone?: (...args: any[]) => any;
+  };
+  chunkSize?: number;
+  throttleParameters?: {
+    rpc?: {
+      max: number;
+      interval: number;
+    };
+    meteoraDlmm?: {
+      max: number;
+      interval: number;
+    };
+    jupiterTokenList?: {
+      max: number;
+      interval: number;
+    };
+  };
 }
 
 export default class MeteoraDownloader {
@@ -62,27 +82,22 @@ export default class MeteoraDownloader {
     );
   }
 
-  constructor(
-    db: MeteoraDlmmDb,
-    endpoint: string,
-    account: string,
-    callbacks?: MeteoraDlmmDownloaderCallbacks,
-  ) {
+  constructor(db: MeteoraDlmmDb, config: MeteoraDownloaderConfig) {
     this._db = db;
-    this._onDone = callbacks?.onDone;
+    this._onDone = config.callbacks?.onDone;
     this._startTime = Date.now();
-    this._init(endpoint, account);
+    this._init(config);
   }
 
-  private async _init(endpoint: string, account: string) {
-    if (account.length >= 43 && account.length <= 44) {
-      this._account = account;
+  private async _init(config: MeteoraDownloaderConfig) {
+    if (config.account.length >= 43 && config.account.length <= 44) {
+      this._account = config.account;
     } else {
-      const connection = new Connection(endpoint);
-      const signatureMatch = account.match(/\w+$/);
+      const connection = new Connection(config.endpoint, config);
+      const signatureMatch = config.account.match(/\w+$/);
       if (!signatureMatch || signatureMatch?.length == 0) {
         throw new Error(
-          `${account} is not a valid account or transaction signature`,
+          `${config.account} is not a valid account or transaction signature`,
         );
       }
       const signature = signatureMatch[0];
@@ -91,13 +106,26 @@ export default class MeteoraDownloader {
       );
       const instructions = parseMeteoraInstructions(parsedTransaction);
       if (instructions.length == 0) {
-        throw new Error(`${account} is not a Meteora DLMM transaction`);
+        throw new Error(`${config.account} is not a Meteora DLMM transaction`);
       }
       this._account = instructions[0].accounts.position;
     }
 
+    if (config.throttleParameters) {
+      if (config.throttleParameters.meteoraDlmm) {
+        MeteoraDlmmApi.updateThrottleParameters(
+          config.throttleParameters.meteoraDlmm,
+        );
+      }
+      if (config.throttleParameters.jupiterTokenList) {
+        JupiterTokenListApi.updateThrottleParameters(
+          config.throttleParameters.jupiterTokenList,
+        );
+      }
+    }
     this._isComplete = await this._db.isComplete(this._account);
-    this._stream = ParsedTransactionStream.stream(endpoint, this._account, {
+    this._stream = ParsedTransactionStream.stream({
+      ...config,
       oldestDate: new Date("11/06/2023"),
       oldestSignature: !this._isComplete
         ? await this._db.getOldestSignature(this._account)
@@ -143,14 +171,14 @@ export default class MeteoraDownloader {
         if (this._transactionDownloadCancelled) {
           return this._fetchUsd();
         }
-        await this._db.addInstruction(instruction);
         instructionCount++;
+        await this._db.addInstruction(instruction);
         this._positionAddresses.add(instruction.accounts.position);
         this._positionTransactionIds.add(instruction.signature);
       });
     });
     const elapsed = Date.now() - start;
-    console.log(`Added ${instructionCount} instructions in ${elapsed}ms`);
+    console.log(`Downloaded ${instructionCount} instructions in ${elapsed}ms`);
     this._fetchMissingPairs();
   }
 

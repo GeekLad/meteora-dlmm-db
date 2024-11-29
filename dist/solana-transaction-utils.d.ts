@@ -1,4 +1,5 @@
-import { type AccountMeta, type ConfirmedSignatureInfo, type ConnectionConfig, type ParsedInstruction, type ParsedTransactionWithMeta, type PartiallyDecodedInstruction } from "@solana/web3.js";
+import { type AccountMeta, type ConfirmedSignatureInfo, type ParsedInstruction, type ParsedTransactionWithMeta, type PartiallyDecodedInstruction } from "@solana/web3.js";
+import { MeteoraDownloaderConfig } from "./meteora-dlmm-downloader";
 export interface TokenTransferInfo {
     mint: string;
     amount: number;
@@ -23,18 +24,13 @@ export interface ParsedTransferInstruction extends ParsedInstruction {
 export declare function getInstructionIndex(transaction: ParsedTransactionWithMeta, instruction: PartiallyDecodedInstruction): number;
 export declare function getAccountMetas(transaction: ParsedTransactionWithMeta, instruction: PartiallyDecodedInstruction): AccountMeta[];
 export declare function getTokenTransfers(transaction: ParsedTransactionWithMeta, index: number): TokenTransferInfo[];
-interface ParsedTransactionStreamConfig extends ConnectionConfig {
+interface ParsedTransactionStreamConfig extends MeteoraDownloaderConfig {
     onParsedTransactionsReceived: (transactions: (ParsedTransactionWithMeta | null)[]) => Promise<any>;
     onSignaturesReceived?: (signatures: ConfirmedSignatureInfo[]) => Promise<any>;
     onDone?: () => any;
     mostRecentSignature?: string;
     oldestSignature?: string;
     oldestDate?: Date;
-    chunkSize?: number;
-    throttleParameters?: {
-        maxRequests: number;
-        interval: number;
-    };
 }
 export declare class ParsedTransactionStream {
     private _account;
@@ -51,7 +47,7 @@ export declare class ParsedTransactionStream {
     private _onDone?;
     get cancelled(): boolean;
     private constructor();
-    static stream(endpoint: string, account: string, config: ParsedTransactionStreamConfig): ParsedTransactionStream;
+    static stream(config: ParsedTransactionStreamConfig): ParsedTransactionStream;
     private _stream;
     private _getSignaturesForAddress;
     private _filterSignatures;

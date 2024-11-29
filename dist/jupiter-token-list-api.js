@@ -30,6 +30,10 @@ export function getFullJupiterTokenList() {
     });
 }
 export class JupiterTokenListApi {
+    static updateThrottleParameters(params) {
+        _a._api.max = params.max;
+        _a._api.interval = params.interval;
+    }
     static getToken(address) {
         return _a._api.processItem(address, this._getToken);
     }

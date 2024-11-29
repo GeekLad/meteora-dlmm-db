@@ -37,6 +37,10 @@ export declare const DLMM_MAP: Map<string, MeteoraDlmmPairData>;
 export declare function getAllDlmmPairDetails(): Promise<MeteoraDlmmPairData[]>;
 export declare class MeteoraDlmmApi {
     private static _meteoraApi;
+    static updateThrottleParameters(params: {
+        max: number;
+        interval: number;
+    }): void;
     static getDlmmPairData(lbPair: string): Promise<MeteoraDlmmPairData>;
     private static _getDlmmPairData;
     static getTransactions(positionAddress: string): Promise<MeteoraPositionTransactions>;

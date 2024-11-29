@@ -26,8 +26,8 @@ export class ApiThrottleCache {
         this._cache = new Map();
         this._requestTimes = [];
         this._activeRequests = new Map();
-        this._max = max;
-        this._interval = interval;
+        this.max = max;
+        this.interval = interval;
         if (cache && processingFunction) {
             this.addCache(cache, processingFunction);
         }
@@ -59,10 +59,10 @@ export class ApiThrottleCache {
     }
     _throttle() {
         return __awaiter(this, void 0, void 0, function* () {
-            while (this._requestWindow.length >= this._max) {
+            while (this._requestWindow.length >= this.max) {
                 // Calculate wait time based on the oldest request in the window
                 const oldestTime = this._requestWindow[0];
-                const timeToWait = this._interval - (Date.now() - oldestTime);
+                const timeToWait = this.interval - (Date.now() - oldestTime);
                 if (timeToWait > 0) {
                     // Wait for the calculated time
                     yield delay(timeToWait);
@@ -78,7 +78,7 @@ export class ApiThrottleCache {
     }
     get _requestWindow() {
         const now = Date.now();
-        return this._requestTimes.filter((time) => now - time < this._interval);
+        return this._requestTimes.filter((time) => now - time < this.interval);
     }
     _getCachedResult(processingFunction, input) {
         const key = this._getInputKey(input);
@@ -118,8 +118,8 @@ export class ApiThrottle {
     constructor(max, interval) {
         this._requestTimes = [];
         this._activeRequests = new Map();
-        this._max = max;
-        this._interval = interval;
+        this.max = max;
+        this.interval = interval;
     }
     processItem(input, processingFunction) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -140,10 +140,10 @@ export class ApiThrottle {
     }
     _throttle() {
         return __awaiter(this, void 0, void 0, function* () {
-            while (this._requestWindow.length >= this._max) {
+            while (this._requestWindow.length >= this.max) {
                 // Calculate wait time based on the oldest request in the window
                 const oldestTime = this._requestWindow[0];
-                const timeToWait = this._interval - (Date.now() - oldestTime);
+                const timeToWait = this.interval - (Date.now() - oldestTime);
                 if (timeToWait > 0) {
                     // Wait for the calculated time
                     yield delay(timeToWait);
@@ -159,7 +159,7 @@ export class ApiThrottle {
     }
     get _requestWindow() {
         const now = Date.now();
-        return this._requestTimes.filter((time) => now - time < this._interval);
+        return this._requestTimes.filter((time) => now - time < this.interval);
     }
     _getKey(processingFunction, input) {
         return `${processingFunction.name}_${this._getInputKey(input)}`;

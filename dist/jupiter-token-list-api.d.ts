@@ -16,6 +16,10 @@ export interface TokenMeta {
 export declare function getFullJupiterTokenList(): Promise<TokenMeta[]>;
 export declare class JupiterTokenListApi {
     private static _api;
+    static updateThrottleParameters(params: {
+        max: number;
+        interval: number;
+    }): void;
     static getToken(address: string): Promise<TokenMeta | null>;
     private static _getToken;
 }

@@ -8,6 +8,7 @@ import {
   type ParsedTransactionWithMeta,
   type PartiallyDecodedInstruction,
 } from "@solana/web3.js";
+import { MeteoraDownloaderConfig } from "./meteora-dlmm-downloader";
 import { ApiThrottle, chunkArray } from "./util";
 
 const CHUNK_SIZE = 250;
@@ -125,7 +126,7 @@ export function getTokenTransfers(
   });
 }
 
-interface ParsedTransactionStreamConfig extends ConnectionConfig {
+interface ParsedTransactionStreamConfig extends MeteoraDownloaderConfig {
   onParsedTransactionsReceived: (
     transactions: (ParsedTransactionWithMeta | null)[],
   ) => Promise<any>;
@@ -134,11 +135,6 @@ interface ParsedTransactionStreamConfig extends ConnectionConfig {
   mostRecentSignature?: string;
   oldestSignature?: string;
   oldestDate?: Date;
-  chunkSize?: number;
-  throttleParameters?: {
-    maxRequests: number;
-    interval: number;
-  };
 }
 
 export class ParsedTransactionStream {
@@ -163,21 +159,17 @@ export class ParsedTransactionStream {
     return this._cancelled;
   }
 
-  private constructor(
-    endpoint: string,
-    account: string,
-    config: ParsedTransactionStreamConfig,
-  ) {
-    this._account = new PublicKey(account);
-    this._connection = new Connection(endpoint, config);
+  private constructor(config: ParsedTransactionStreamConfig) {
+    this._account = new PublicKey(config.account);
+    this._connection = new Connection(config.endpoint, config);
     this._mostRecentSignature = config?.mostRecentSignature;
     this._oldestSignature = config?.oldestSignature;
     this._oldestDate = config?.oldestDate;
     this._chunkSize = config?.chunkSize || CHUNK_SIZE;
     if (!ParsedTransactionStream._apiThrottle) {
       ParsedTransactionStream._apiThrottle = new ApiThrottle(
-        config?.throttleParameters?.maxRequests || Infinity,
-        config?.throttleParameters?.interval || 0,
+        config?.throttleParameters?.rpc?.max || Infinity,
+        config?.throttleParameters?.rpc?.interval || 0,
       );
     }
     this._onParsedTransactionsReceived = config.onParsedTransactionsReceived;
@@ -186,11 +178,9 @@ export class ParsedTransactionStream {
   }
 
   static stream(
-    endpoint: string,
-    account: string,
     config: ParsedTransactionStreamConfig,
   ): ParsedTransactionStream {
-    const stream = new ParsedTransactionStream(endpoint, account, config);
+    const stream = new ParsedTransactionStream(config);
     stream._stream();
     return stream;
   }

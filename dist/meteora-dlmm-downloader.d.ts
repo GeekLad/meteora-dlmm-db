@@ -1,7 +1,5 @@
+import { ConnectionConfig } from "@solana/web3.js";
 import MeteoraDlmmDb from "./meteora-dlmm-db";
-interface MeteoraDlmmDownloaderCallbacks {
-    onDone?: (...args: any[]) => any;
-}
 export interface MeteoraDlmmDownloaderStats {
     downloadingComplete: boolean;
     positionsComplete: boolean;
@@ -14,6 +12,28 @@ export interface MeteoraDlmmDownloaderStats {
     positionCount: number;
     usdPositionCount: number;
     missingUsd: number;
+}
+export interface MeteoraDownloaderConfig extends ConnectionConfig {
+    endpoint: string;
+    account: string;
+    callbacks?: {
+        onDone?: (...args: any[]) => any;
+    };
+    chunkSize?: number;
+    throttleParameters?: {
+        rpc?: {
+            max: number;
+            interval: number;
+        };
+        meteoraDlmm?: {
+            max: number;
+            interval: number;
+        };
+        jupiterTokenList?: {
+            max: number;
+            interval: number;
+        };
+    };
 }
 export default class MeteoraDownloader {
     private _db;
@@ -39,7 +59,7 @@ export default class MeteoraDownloader {
     private _oldestBlocktime;
     get downloadComplete(): boolean;
     get positionsComplete(): boolean;
-    constructor(db: MeteoraDlmmDb, endpoint: string, account: string, callbacks?: MeteoraDlmmDownloaderCallbacks);
+    constructor(db: MeteoraDlmmDb, config: MeteoraDownloaderConfig);
     private _init;
     stats(): Promise<MeteoraDlmmDownloaderStats>;
     private _loadInstructions;
@@ -50,4 +70,3 @@ export default class MeteoraDownloader {
     private _finish;
     cancel(): void;
 }
-export {};

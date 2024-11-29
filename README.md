@@ -26,19 +26,19 @@ Add the library with your favorite package manager:
 ### npm
 
 ```sh
-npm add GeekLad/meteora-dlmm-db
+npm add git@github.com:GeekLad/meteora-dlmm-db
 ```
 
 ### yarn
 
 ```sh
-yarn add GeekLad/meteora-dlmm-db
+yarn add git@github.com:GeekLad/meteora-dlmm-db
 ```
 
 ### bun
 
 ```sh
-bun add GeekLad/meteora-dlmm-db
+bun add git@github.com:GeekLad/meteora-dlmm-db
 ```
 
 ### Using in a Browser
@@ -88,10 +88,10 @@ existing databse, it will be overwritten with a new, blank databse.
 To download transactions:
 
 ```ts
-const downloader = db.download(
-  "<Valid RPC URL goes here>",
-  "<Valid Solana Wallet Address goes here>",
-);
+const downloader = db.download({
+  rpc: "<Valid RPC URL goes here>",
+  account: "<Valid Solana Wallet Address goes here>",
+});
 ```
 
 This creates a downloader instance, which has some properties & methods you can

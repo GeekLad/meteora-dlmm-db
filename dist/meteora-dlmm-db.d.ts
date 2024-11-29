@@ -1,7 +1,7 @@
 import { type MeteoraDlmmInstruction } from "./meteora-instruction-parser";
 import { type MeteoraDlmmPairData, type MeteoraPositionTransactions } from "./meteora-dlmm-api";
 import { type TokenMeta } from "./jupiter-token-list-api";
-import MeteoraDlmmDownloader from "./meteora-dlmm-downloader";
+import MeteoraDlmmDownloader, { MeteoraDownloaderConfig } from "./meteora-dlmm-downloader";
 interface MeteoraDlmmDbSchema {
     [column: string]: number | boolean | string | Array<unknown> | Uint8Array | null;
 }
@@ -58,9 +58,7 @@ export default class MeteoraDlmmDb {
     private _createTables;
     private _createStatements;
     private _addInitialData;
-    download(endpoint: string, account: string, callbacks?: {
-        onDone?: (...args: any[]) => any;
-    }): MeteoraDlmmDownloader;
+    download(config: MeteoraDownloaderConfig): MeteoraDlmmDownloader;
     addInstruction(instruction: MeteoraDlmmInstruction): Promise<void>;
     addTransfers(instruction: MeteoraDlmmInstruction): Promise<void>;
     addPair(pair: MeteoraDlmmPairData): Promise<void>;

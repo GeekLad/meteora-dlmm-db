@@ -71,25 +71,25 @@ export class ParsedTransactionStream {
     get cancelled() {
         return this._cancelled;
     }
-    constructor(endpoint, account, config) {
-        var _a, _b;
+    constructor(config) {
+        var _a, _b, _c, _d;
         this._cancelled = false;
         this._currentSignatures = [];
-        this._account = new PublicKey(account);
-        this._connection = new Connection(endpoint, config);
+        this._account = new PublicKey(config.account);
+        this._connection = new Connection(config.endpoint, config);
         this._mostRecentSignature = config === null || config === void 0 ? void 0 : config.mostRecentSignature;
         this._oldestSignature = config === null || config === void 0 ? void 0 : config.oldestSignature;
         this._oldestDate = config === null || config === void 0 ? void 0 : config.oldestDate;
         this._chunkSize = (config === null || config === void 0 ? void 0 : config.chunkSize) || CHUNK_SIZE;
         if (!ParsedTransactionStream._apiThrottle) {
-            ParsedTransactionStream._apiThrottle = new ApiThrottle(((_a = config === null || config === void 0 ? void 0 : config.throttleParameters) === null || _a === void 0 ? void 0 : _a.maxRequests) || Infinity, ((_b = config === null || config === void 0 ? void 0 : config.throttleParameters) === null || _b === void 0 ? void 0 : _b.interval) || 0);
+            ParsedTransactionStream._apiThrottle = new ApiThrottle(((_b = (_a = config === null || config === void 0 ? void 0 : config.throttleParameters) === null || _a === void 0 ? void 0 : _a.rpc) === null || _b === void 0 ? void 0 : _b.max) || Infinity, ((_d = (_c = config === null || config === void 0 ? void 0 : config.throttleParameters) === null || _c === void 0 ? void 0 : _c.rpc) === null || _d === void 0 ? void 0 : _d.interval) || 0);
         }
         this._onParsedTransactionsReceived = config.onParsedTransactionsReceived;
         this._onSignaturesReceived = config.onSignaturesReceived;
         this._onDone = config.onDone;
     }
-    static stream(endpoint, account, config) {
-        const stream = new ParsedTransactionStream(endpoint, account, config);
+    static stream(config) {
+        const stream = new ParsedTransactionStream(config);
         stream._stream();
         return stream;
     }
