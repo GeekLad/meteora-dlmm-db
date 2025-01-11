@@ -116,7 +116,7 @@ async function extractPairData(
     base_fee_percentage,
   } = pair;
   const [xSymbol, ySymbol] = name.split("-");
-  const baseFeeBps = Number(base_fee_percentage) * 100 * 100;
+  const baseFeeBps = Number(base_fee_percentage) * 100;
   return {
     lbPair,
     name,
