@@ -24,7 +24,7 @@ function extractPairData(pair) {
     return __awaiter(this, void 0, void 0, function* () {
         const { address: lbPair, name, mint_x: mintX, mint_y: mintY, bin_step: binStep, base_fee_percentage, } = pair;
         const [xSymbol, ySymbol] = name.split("-");
-        const baseFeeBps = Number(base_fee_percentage) * 100 * 100;
+        const baseFeeBps = Number(base_fee_percentage) * 100;
         return {
             lbPair,
             name,
