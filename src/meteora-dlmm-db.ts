@@ -493,7 +493,7 @@ export default class MeteoraDlmmDb {
             MAX(position_is_open) OVER (PARTITION BY position_address) position_is_open,
             MAX(is_opening_transaction) OVER (PARTITION BY signature) is_opening_transaction,
             MAX(is_closing_transaction) OVER (PARTITION BY signature) is_closing_transaction,
-            price,
+            MIN(price) OVER (PARTITION BY position_address) price,
             COALESCE(
               SUM(
                 CASE 
@@ -548,7 +548,7 @@ export default class MeteoraDlmmDb {
             ) usd_withdrawal          
         FROM
           prices
-        )
+        )        
         SELECT
           block_time,
           is_hawksight,
