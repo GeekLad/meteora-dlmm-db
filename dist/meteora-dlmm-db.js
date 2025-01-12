@@ -208,8 +208,8 @@ export default class MeteoraDlmmDb {
       -- Transactions --
       ------------------
       DROP VIEW IF EXISTS v_transactions;
-  CREATE VIEW v_transactions AS
-  WITH instructions_with_active_bin_id_groups AS (
+      CREATE VIEW v_transactions AS
+  			WITH instructions_with_active_bin_id_groups AS (
           SELECT
             i.block_time,
             i.is_hawksight,
@@ -246,6 +246,7 @@ export default class MeteoraDlmmDb {
             COALESCE(i.removal_bps, 0) removal_bps,
             i.instruction_name = "removeLiquiditySingleSide" is_one_sided_removal,
             MAX(CASE WHEN i.instruction_type = 'close' THEN 1 END) OVER (PARTITION BY i.position_address RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) IS NULL position_is_open,
+            CASE WHEN i.instruction_type = 'close' THEN 1 ELSE 0 END is_closing_transaction,
             COALESCE(ttx.amount, 0) x_amount,
             COALESCE(tty.amount, 0) y_amount,
             COALESCE(ttx.usd_amount, 0) + COALESCE(tty.usd_amount, 0) usd_amount
@@ -316,6 +317,7 @@ export default class MeteoraDlmmDb {
             removal_bps,
             is_one_sided_removal,
             position_is_open,
+            is_closing_transaction,
             x_amount,
             y_amount,
             usd_amount
@@ -331,6 +333,7 @@ export default class MeteoraDlmmDb {
             position_address,
             owner_address,
             pair_address,
+            bin_step,
             base_fee_bps,
             CASE 
               WHEN NOT is_inverted THEN x_mint
@@ -368,6 +371,7 @@ export default class MeteoraDlmmDb {
             removal_bps,
             is_one_sided_removal,
             position_is_open,
+            is_closing_transaction,
             CASE 
               WHEN NOT is_inverted THEN POWER(1.0 + 1.0 * bin_step / 10000, active_bin_id) * POWER(10, x_decimals - y_decimals)
               ELSE 1 / (POWER(1.0 + 1.0 * bin_step / 10000, active_bin_id) * POWER(10, x_decimals - y_decimals))
@@ -404,8 +408,11 @@ export default class MeteoraDlmmDb {
             removal_bps,
             is_one_sided_removal,
             position_is_open,
-            price,
-            price * base_amount + quote_amount amount,
+            is_closing_transaction,
+            bin_step,
+            base_fee_bps,
+            price * (1.0 - bin_step / 10000.0 - base_fee_bps / 10000.0) price,
+            price * (1.0 - bin_step / 10000.0 - base_fee_bps / 10000.0) * base_amount + quote_amount amount,
             usd_amount
           FROM
             prices
@@ -427,9 +434,12 @@ export default class MeteoraDlmmDb {
             quote_decimals,
             quote_logo,
             is_inverted,
-            MAX(removal_bps) OVER (PARTITION BY signature, position_address) removal_bps,
-            MAX(is_one_sided_removal) OVER (PARTITION BY signature, position_address) is_one_sided_removal,
-            MAX(position_is_open) OVER (PARTITION BY signature, position_address) position_is_open,
+            MAX(position_is_open) OVER (PARTITION BY position_address) position_is_open,
+            MAX(is_closing_transaction) OVER (PARTITION BY signature) is_closing_transaction,
+            CASE
+            	WHEN position_is_open = 0 THEN 1
+            	ELSE 0
+            END is_closing_transaction,            
             price,
             COALESCE(
               SUM(
@@ -485,180 +495,8 @@ export default class MeteoraDlmmDb {
             ) usd_withdrawal          
         FROM
           prices
-        ),
-        balance_change_groups AS (
-          SELECT 
-            *,
-            SUM(CASE WHEN removal_bps > 0 THEN 1 ELSE 0 END) OVER (PARTITION BY position_address ORDER BY block_time, removal_bps) position_group_id
-          FROM 
-            transactions
-        ),
-        unadjusted_balances AS (
-          SELECT
-            block_time,
-            is_hawksight,
-            signature,
-            position_address,
-            owner_address,
-            pair_address,
-            base_mint,
-            base_symbol,
-            base_decimals,
-            base_logo,
-            quote_mint,
-            quote_symbol,
-            quote_decimals,
-            quote_logo,
-            is_inverted,          
-            removal_bps,
-            is_one_sided_removal,
-            position_is_open,
-            price,
-            MAX(is_one_sided_removal) OVER (PARTITION BY position_address, position_group_id ORDER BY block_time, removal_bps) group_has_one_sided_removal,
-            ROW_NUMBER() OVER (PARTITION BY position_address, position_group_id ORDER BY block_time, removal_bps) position_group_seq_id,
-            COUNT(*) OVER (PARTITION BY position_address, position_group_id ORDER BY block_time, removal_bps ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) position_group_count,
-            position_group_id,
-            MAX(block_time) OVER (PARTITION BY position_address ORDER BY block_time, removal_bps)
-            -MIN(block_time) OVER (PARTITION BY position_address ORDER BY block_time, removal_bps) position_seconds,	      	
-            CASE 
-              WHEN removal_bps = 10000 THEN 0
-              ELSE COALESCE(LEAD(block_time) OVER (PARTITION BY position_address ORDER BY block_time, removal_bps)-block_time, 0)
-            END position_balance_seconds,
-            fee_amount,
-            deposit,
-            withdrawal,
-            CASE
-              WHEN removal_bps = 0 THEN
-                SUM(
-                  CASE 
-                    WHEN deposit >= 0 THEN deposit 
-                    ELSE 0
-                  END
-                ) OVER (
-                  PARTITION BY position_address, position_group_id ORDER BY block_time, removal_bps
-                )
-              WHEN removal_bps = 10000 THEN 0
-              ELSE withdrawal * (1.0 * 10000 / removal_bps - 1)
-            END position_balance,
-            usd_fee_amount,
-            usd_deposit,
-            usd_withdrawal,
-            CASE
-              WHEN removal_bps = 0 THEN
-                SUM(
-                  CASE 
-                    WHEN usd_deposit > 0 THEN usd_deposit 
-                    ELSE 0
-                  END
-                ) OVER (
-                  PARTITION BY position_address, position_group_id ORDER BY block_time, removal_bps
-                )
-              WHEN removal_bps = 10000 THEN 0
-              ELSE usd_withdrawal * (1.0 * 10000 / removal_bps - 1)
-            END usd_position_balance
-          FROM
-            balance_change_groups
-          ORDER BY
-            position_address, block_time
-        ),
-        balances as (
-          SELECT 
-            b1.block_time,
-            b1.is_hawksight,
-            b1.signature,
-            b1.position_address,
-            b1.owner_address,
-            b1.pair_address,
-            b1.base_mint,
-            b1.base_symbol,
-            b1.base_decimals,
-            b1.base_logo,
-            b1.quote_mint,
-            b1.quote_symbol,
-            b1.quote_decimals,
-            b1.quote_logo,
-            b1.is_inverted,          
-            b1.removal_bps,
-            b1.is_one_sided_removal,	      	
-            b1.position_is_open,
-            b1.price,
-            b1.group_has_one_sided_removal,
-            b1.position_group_seq_id,
-            b1.position_group_count,
-            b1.position_group_id,
-            b1.position_seconds,	      	
-            b1.position_balance_seconds,
-            b1.fee_amount,
-            b1.deposit,
-            b1.withdrawal,
-            CASE 
-              WHEN b1.position_group_id = 0 THEN b1.position_balance
-              WHEN b1.position_group_seq_id = 1 AND NOT b1.group_has_one_sided_removal THEN b1.position_balance
-              WHEN b1.group_has_one_sided_removal THEN COALESCE(b3.position_balance, 0) - SUM(b1.withdrawal-b1.deposit) OVER (PARTITION BY b1.position_address, b1.position_group_id ORDER BY b1.block_time)
-              ELSE b1.position_balance + COALESCE(b2.position_balance, 0)
-            END position_balance,	      	
-            b1.usd_fee_amount,
-            b1.usd_deposit,
-            b1.usd_withdrawal,
-            CASE 
-              WHEN b1.position_group_id = 0 THEN b1.usd_position_balance
-              WHEN b1.position_group_seq_id = 1 AND NOT b1.group_has_one_sided_removal THEN b1.usd_position_balance
-              WHEN b1.group_has_one_sided_removal THEN COALESCE(b3.usd_position_balance, 0) - SUM(b1.usd_withdrawal-b1.usd_deposit) OVER (PARTITION BY b1.position_address, b1.position_group_id ORDER BY b1.block_time)
-              ELSE b1.usd_position_balance + COALESCE(b2.usd_position_balance, 0)
-            END usd_position_balance
-          FROM
-            unadjusted_balances b1
-            LEFT JOIN unadjusted_balances b2 ON
-              b2.position_address = b1.position_address
-              AND b2.position_group_id = b1.position_group_id
-              AND b2.position_group_seq_id = 1
-            LEFT JOIN unadjusted_balances b3 ON
-              b3.position_address = b1.position_address
-              AND b3.position_group_id = b1.position_group_id - 1
-              AND b3.position_group_seq_id = b3.position_group_count
-          ORDER BY
-            b1.position_address, b1.block_time
-        ),
-        pnl AS (
-          SELECT
-            block_time,
-            is_hawksight,
-            signature,
-            position_address,
-            owner_address,
-            pair_address,
-            base_mint,
-            base_symbol,
-            base_decimals,
-            base_logo,
-            quote_mint,
-            quote_symbol,
-            quote_decimals,
-            quote_logo,
-            is_inverted,
-            removal_bps,
-            is_one_sided_removal,
-            position_is_open,
-            price,
-            group_has_one_sided_removal,
-            position_group_seq_id,
-            position_group_count,
-            position_group_id,
-            fee_amount,
-            deposit,
-            withdrawal,
-            position_balance,
-            position_balance + SUM(withdrawal-deposit) OVER (PARTITION BY position_address ORDER BY block_time, removal_bps) cumulative_position_impermanent_loss,
-            position_balance + SUM(fee_amount) OVER (PARTITION BY position_address ORDER BY block_time, removal_bps) + SUM(withdrawal-deposit) OVER (PARTITION BY position_address ORDER BY block_time, removal_bps) cumulative_pnl,
-            usd_fee_amount,
-            usd_deposit,
-            usd_withdrawal,
-            usd_position_balance,
-            usd_position_balance + SUM(usd_withdrawal-usd_deposit) OVER (PARTITION BY position_address ORDER BY block_time, removal_bps) usd_cumulative_position_impermanent_loss,
-            usd_position_balance + SUM(usd_fee_amount) OVER (PARTITION BY position_address ORDER BY block_time, removal_bps) + SUM(usd_withdrawal-usd_deposit) OVER (PARTITION BY position_address ORDER BY block_time, removal_bps) usd_cumulative_pnl
-          FROM balances
         )
-        SELECT 
+        SELECT
           block_time,
           is_hawksight,
           signature,
@@ -674,23 +512,17 @@ export default class MeteoraDlmmDb {
           quote_decimals,
           quote_logo,
           is_inverted,
-          removal_bps,
-          is_one_sided_removal,	      	
           position_is_open,
+          is_closing_transaction,
           price,
           fee_amount,
           deposit,
           withdrawal,
-          position_balance,
-          cumulative_position_impermanent_loss - COALESCE(LAG(cumulative_position_impermanent_loss) OVER (PARTITION BY position_address ORDER BY block_time, removal_bps), 0) impermanent_loss,
-          cumulative_pnl - COALESCE(LAG(cumulative_pnl) OVER (PARTITION BY position_address ORDER BY block_time, removal_bps), 0) pnl,
           usd_fee_amount,
           usd_deposit,
-          usd_withdrawal,
-          usd_position_balance,
-          usd_cumulative_position_impermanent_loss - COALESCE(LAG(usd_cumulative_position_impermanent_loss) OVER (PARTITION BY position_address ORDER BY block_time, removal_bps), 0) usd_impermanent_loss,
-          usd_cumulative_pnl - COALESCE(LAG(usd_cumulative_pnl) OVER (PARTITION BY position_address ORDER BY block_time, removal_bps), 0) usd_pnl
-        FROM pnl
+          usd_withdrawal
+				FROM
+					transactions
         ORDER BY
           block_time,
           position_address;

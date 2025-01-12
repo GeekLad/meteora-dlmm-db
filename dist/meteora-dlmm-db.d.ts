@@ -21,19 +21,15 @@ export interface MeteoraDlmmDbTransactions extends MeteoraDlmmDbSchema {
     quote_decimals: number;
     quote_logo: string;
     is_inverted: number;
-    removal_bps: number;
-    position_is_open: boolean;
+    position_is_open: number;
+    is_closing_transaction: number;
     price: number;
     fee_amount: number;
     deposit: number;
     withdrawal: number;
-    impermanent_loss: number;
-    pnl: number;
     usd_fee_amount: number;
     usd_deposit: number;
     usd_withdrawal: number;
-    usd_impermanent_loss: number;
-    usd_pnl: number;
 }
 export default class MeteoraDlmmDb {
     private _db;
