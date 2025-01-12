@@ -6,17 +6,18 @@ import {
   TokenMeta,
 } from "../src/jupiter-token-list-api";
 import tokenCache from "../src/jupiter-token-list-cache.ts";
+import { Connection, PublicKey } from "@solana/web3.js";
+import { delay } from "../src/util.ts";
 
-const ingoreTokens: string[] = tokenCache.ignore;
 const now = new Date();
+const connection = new Connection("https://api.mainnet-beta.solana.com");
 
-async function saveTokens(tokens: TokenMeta[], ignoreTokens: string[]) {
+async function saveTokens(tokens: TokenMeta[]) {
   await Bun.write(
     "./src/jupiter-token-list-cache.ts",
     `
 const cache = ${JSON.stringify({
       lastUpdated: `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`,
-      ignore: Array.from(new Set(ignoreTokens)),
       tokens: tokens.map((token) => {
         const { address, name, symbol, decimals, logoURI } = token;
         return [address, name, symbol, decimals, logoURI];
@@ -27,17 +28,34 @@ export default cache;
   );
 }
 
+async function getMissingToken(address: string) {
+  await delay(1000);
+  const tokenData = await connection.getParsedAccountInfo(
+    new PublicKey(address),
+  );
+  if (
+    tokenData.value &&
+    tokenData.value.data &&
+    "parsed" in tokenData.value.data
+  ) {
+    return {
+      address,
+      name: tokenData.value.data.parsed.info.name || null,
+      symbol: tokenData.value.data.parsed.info.symbol || null,
+      decimals: tokenData.value.data.parsed.info.decimals,
+      logoURI: tokenData.value.data.parsed.info.logoURI || null,
+    };
+  }
+  return null;
+}
+
 // Update the DLMM cache
 console.log("Updating DLMM cache");
 const fetchedPairs = await getAllDlmmPairDetails();
 const pairs = Array.from(DLMM_MAP.values());
 let newPairCount = 0;
 fetchedPairs.forEach((pair) => {
-  if (
-    !DLMM_MAP.has(pair.lbPair) &&
-    !ingoreTokens.includes(pair.mintX) &&
-    !ingoreTokens.includes(pair.mintY)
-  ) {
+  if (!DLMM_MAP.has(pair.lbPair)) {
     pairs.push(pair);
     newPairCount++;
   }
@@ -85,7 +103,7 @@ if (newPairCount > 0) {
         tokens.length - oldTokenListSize
       } new tokens fetched from full token list.`,
     );
-    await saveTokens(tokens, ingoreTokens);
+    await saveTokens(tokens);
   }
   if (missingTokenAddresses.length > 0) {
     console.log(
@@ -93,12 +111,15 @@ if (newPairCount > 0) {
     );
     for (let i = 0; i < missingTokenAddresses.length; i++) {
       const address = missingTokenAddresses[i];
-      const missingToken = await JupiterTokenListApi.getToken(address);
-      if (missingToken != null) {
+      let missingToken = await JupiterTokenListApi.getToken(address);
+      if (missingToken == null || (missingToken && !missingToken.address)) {
+        missingToken = await getMissingToken(address);
+      }
+      if (missingToken != null && missingToken.address) {
         tokens.push(missingToken);
         updatedCount++;
         remaining = missingTokenAddresses.length - updatedCount;
-        await saveTokens(tokens, ingoreTokens);
+        await saveTokens(tokens);
         if (updatedCount % 10 == 0 && updatedCount > 1) {
           elapsed = Date.now() - start;
           estimated_time =
@@ -108,9 +129,6 @@ if (newPairCount > 0) {
           );
         }
       } else {
-        console.log(`Token ${address} not found`);
-        ingoreTokens.push(address);
-        await saveTokens(tokens, ingoreTokens);
       }
     }
   } else {

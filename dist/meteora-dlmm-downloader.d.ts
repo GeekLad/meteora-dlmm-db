@@ -36,7 +36,9 @@ export interface MeteoraDownloaderConfig extends ConnectionConfig {
     };
 }
 export default class MeteoraDownloader {
+    private _config;
     private _db;
+    private _connection;
     private _account;
     private _stream;
     private _gotNewest;
@@ -66,6 +68,7 @@ export default class MeteoraDownloader {
     private _onNewSignaturesReceived;
     private _fetchMissingPairs;
     private _fetchMissingTokens;
+    private _getMissingToken;
     private _fetchUsd;
     private _finish;
     cancel(): void;

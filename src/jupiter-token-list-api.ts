@@ -79,7 +79,7 @@ export class JupiterTokenListApi {
     const token = JSON.parse(
       await response.text(),
     ) as JupiterTokenListToken | null;
-    if (token == null) {
+    if (token == null || !token.address) {
       return null;
     }
     const { name, symbol, decimals, logoURI } = token;

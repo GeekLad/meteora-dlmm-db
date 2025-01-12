@@ -1,10 +1,11 @@
 import {
   Connection,
   ConnectionConfig,
+  PublicKey,
   type ConfirmedSignatureInfo,
   type ParsedTransactionWithMeta,
 } from "@solana/web3.js";
-import { JupiterTokenListApi } from "./jupiter-token-list-api";
+import { JupiterTokenListApi, TokenMeta } from "./jupiter-token-list-api";
 import { MeteoraDlmmApi } from "./meteora-dlmm-api";
 import MeteoraDlmmDb from "./meteora-dlmm-db";
 import { parseMeteoraInstructions } from "./meteora-instruction-parser";
@@ -48,7 +49,9 @@ export interface MeteoraDownloaderConfig extends ConnectionConfig {
 }
 
 export default class MeteoraDownloader {
+  private _config: MeteoraDownloaderConfig;
   private _db: MeteoraDlmmDb;
+  private _connection: Connection;
   private _account!: string;
   private _stream!: ParsedTransactionStream;
   private _gotNewest = false;
@@ -83,6 +86,8 @@ export default class MeteoraDownloader {
   }
 
   constructor(db: MeteoraDlmmDb, config: MeteoraDownloaderConfig) {
+    this._config = config;
+    this._connection = new Connection(config.endpoint, config);
     this._db = db;
     this._onDone = config.callbacks?.onDone;
     this._startTime = Date.now();
@@ -93,7 +98,7 @@ export default class MeteoraDownloader {
     if (config.account.length >= 43 && config.account.length <= 44) {
       this._account = config.account;
     } else {
-      const connection = new Connection(config.endpoint, config);
+      this._connection = new Connection(config.endpoint, config);
       const signatureMatch = config.account.match(/\w+$/);
       if (!signatureMatch || signatureMatch?.length == 0) {
         throw new Error(
@@ -101,7 +106,7 @@ export default class MeteoraDownloader {
         );
       }
       const signature = signatureMatch[0];
-      const parsedTransaction = await connection.getParsedTransaction(
+      const parsedTransaction = await this._connection.getParsedTransaction(
         signature,
       );
       const instructions = parseMeteoraInstructions(parsedTransaction);
@@ -242,18 +247,15 @@ export default class MeteoraDownloader {
       while (missingTokens.length > 0) {
         const address = missingTokens.shift();
         if (address) {
-          const missingToken = await JupiterTokenListApi.getToken(address);
-          if (missingToken) {
-            if (this._transactionDownloadCancelled) {
-              return this._fetchUsd();
-            }
-            await this._db.addToken(missingToken);
-            console.log(`Added missing token ${missingToken.symbol}`);
-          } else {
-            throw new Error(
-              `Token mint ${address} was not found in the Jupiter token list`,
-            );
+          let missingToken = await JupiterTokenListApi.getToken(address);
+          if (missingToken == null) {
+            missingToken = await this._getMissingToken(address);
           }
+          if (this._transactionDownloadCancelled) {
+            return this._fetchUsd();
+          }
+          await this._db.addToken(missingToken);
+          console.log(`Added missing token ${missingToken.symbol}`);
         }
         if (this._transactionDownloadCancelled) {
           return this._fetchUsd();
@@ -263,6 +265,29 @@ export default class MeteoraDownloader {
       this._fetchingMissingTokens = false;
     }
     this._fetchUsd();
+  }
+
+  private async _getMissingToken(address: string): Promise<TokenMeta> {
+    if (!this._connection) {
+      this._connection = new Connection(this._config.endpoint, this._config);
+    }
+    const tokenData = await this._connection.getParsedAccountInfo(
+      new PublicKey(address),
+    );
+    if (
+      tokenData.value &&
+      tokenData.value.data &&
+      "parsed" in tokenData.value.data
+    ) {
+      return {
+        address,
+        name: tokenData.value.data.parsed.info.name || null,
+        symbol: tokenData.value.data.parsed.info.symbol || null,
+        decimals: tokenData.value.data.parsed.info.decimals,
+        logoURI: tokenData.value.data.parsed.info.logoURI || null,
+      };
+    }
+    throw new Error(`Token mint ${address} was not found`);
   }
 
   private async _fetchUsd() {

@@ -7,7 +7,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import { Connection, } from "@solana/web3.js";
+import { Connection, PublicKey, } from "@solana/web3.js";
 import { JupiterTokenListApi } from "./jupiter-token-list-api";
 import { MeteoraDlmmApi } from "./meteora-dlmm-api";
 import { parseMeteoraInstructions } from "./meteora-instruction-parser";
@@ -38,6 +38,8 @@ export default class MeteoraDownloader {
         this._fullyCancelled = false;
         this._oldestSignature = "";
         this._oldestBlocktime = 0;
+        this._config = config;
+        this._connection = new Connection(config.endpoint, config);
         this._db = db;
         this._onDone = (_a = config.callbacks) === null || _a === void 0 ? void 0 : _a.onDone;
         this._startTime = Date.now();
@@ -49,13 +51,13 @@ export default class MeteoraDownloader {
                 this._account = config.account;
             }
             else {
-                const connection = new Connection(config.endpoint, config);
+                this._connection = new Connection(config.endpoint, config);
                 const signatureMatch = config.account.match(/\w+$/);
                 if (!signatureMatch || (signatureMatch === null || signatureMatch === void 0 ? void 0 : signatureMatch.length) == 0) {
                     throw new Error(`${config.account} is not a valid account or transaction signature`);
                 }
                 const signature = signatureMatch[0];
-                const parsedTransaction = yield connection.getParsedTransaction(signature);
+                const parsedTransaction = yield this._connection.getParsedTransaction(signature);
                 const instructions = parseMeteoraInstructions(parsedTransaction);
                 if (instructions.length == 0) {
                     throw new Error(`${config.account} is not a Meteora DLMM transaction`);
@@ -174,17 +176,15 @@ export default class MeteoraDownloader {
                 while (missingTokens.length > 0) {
                     const address = missingTokens.shift();
                     if (address) {
-                        const missingToken = yield JupiterTokenListApi.getToken(address);
-                        if (missingToken) {
-                            if (this._transactionDownloadCancelled) {
-                                return this._fetchUsd();
-                            }
-                            yield this._db.addToken(missingToken);
-                            console.log(`Added missing token ${missingToken.symbol}`);
+                        let missingToken = yield JupiterTokenListApi.getToken(address);
+                        if (missingToken == null) {
+                            missingToken = yield this._getMissingToken(address);
                         }
-                        else {
-                            throw new Error(`Token mint ${address} was not found in the Jupiter token list`);
+                        if (this._transactionDownloadCancelled) {
+                            return this._fetchUsd();
                         }
+                        yield this._db.addToken(missingToken);
+                        console.log(`Added missing token ${missingToken.symbol}`);
                     }
                     if (this._transactionDownloadCancelled) {
                         return this._fetchUsd();
@@ -194,6 +194,26 @@ export default class MeteoraDownloader {
                 this._fetchingMissingTokens = false;
             }
             this._fetchUsd();
+        });
+    }
+    _getMissingToken(address) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (!this._connection) {
+                this._connection = new Connection(this._config.endpoint, this._config);
+            }
+            const tokenData = yield this._connection.getParsedAccountInfo(new PublicKey(address));
+            if (tokenData.value &&
+                tokenData.value.data &&
+                "parsed" in tokenData.value.data) {
+                return {
+                    address,
+                    name: tokenData.value.data.parsed.info.name || null,
+                    symbol: tokenData.value.data.parsed.info.symbol || null,
+                    decimals: tokenData.value.data.parsed.info.decimals,
+                    logoURI: tokenData.value.data.parsed.info.logoURI || null,
+                };
+            }
+            throw new Error(`Token mint ${address} was not found`);
         });
     }
     _fetchUsd() {

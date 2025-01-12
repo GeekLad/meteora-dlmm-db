@@ -44,7 +44,7 @@ export class JupiterTokenListApi {
                 throw new Error(`Too many requests made to Jupiter API`);
             }
             const token = JSON.parse(yield response.text());
-            if (token == null) {
+            if (token == null || !token.address) {
                 return null;
             }
             const { name, symbol, decimals, logoURI } = token;
