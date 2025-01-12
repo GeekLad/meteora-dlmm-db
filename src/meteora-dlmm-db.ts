@@ -37,6 +37,7 @@ export interface MeteoraDlmmDbTransactions extends MeteoraDlmmDbSchema {
   quote_logo: string;
   is_inverted: number;
   position_is_open: number;
+  is_opening_transaction: number;
   is_closing_transaction: number;
   price: number;
   fee_amount: number;
@@ -297,6 +298,7 @@ export default class MeteoraDlmmDb {
             COALESCE(i.removal_bps, 0) removal_bps,
             i.instruction_name = "removeLiquiditySingleSide" is_one_sided_removal,
             MAX(CASE WHEN i.instruction_type = 'close' THEN 1 END) OVER (PARTITION BY i.position_address RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) IS NULL position_is_open,
+            CASE WHEN i.instruction_type = 'open' THEN 1 ELSE 0 END is_opening_transaction,
             CASE WHEN i.instruction_type = 'close' THEN 1 ELSE 0 END is_closing_transaction,
             COALESCE(ttx.amount, 0) x_amount,
             COALESCE(tty.amount, 0) y_amount,
@@ -368,6 +370,7 @@ export default class MeteoraDlmmDb {
             removal_bps,
             is_one_sided_removal,
             position_is_open,
+            is_opening_transaction,
             is_closing_transaction,
             x_amount,
             y_amount,
@@ -422,6 +425,7 @@ export default class MeteoraDlmmDb {
             removal_bps,
             is_one_sided_removal,
             position_is_open,
+            is_opening_transaction,
             is_closing_transaction,
             CASE 
               WHEN NOT is_inverted THEN POWER(1.0 + 1.0 * bin_step / 10000, active_bin_id) * POWER(10, x_decimals - y_decimals)
@@ -459,6 +463,7 @@ export default class MeteoraDlmmDb {
             removal_bps,
             is_one_sided_removal,
             position_is_open,
+            is_opening_transaction,
             is_closing_transaction,
             bin_step,
             base_fee_bps,
@@ -486,11 +491,8 @@ export default class MeteoraDlmmDb {
             quote_logo,
             is_inverted,
             MAX(position_is_open) OVER (PARTITION BY position_address) position_is_open,
+            MAX(is_opening_transaction) OVER (PARTITION BY signature) is_opening_transaction,
             MAX(is_closing_transaction) OVER (PARTITION BY signature) is_closing_transaction,
-            CASE
-            	WHEN position_is_open = 0 THEN 1
-            	ELSE 0
-            END is_closing_transaction,            
             price,
             COALESCE(
               SUM(
@@ -564,6 +566,7 @@ export default class MeteoraDlmmDb {
           quote_logo,
           is_inverted,
           position_is_open,
+          is_opening_transaction,
           is_closing_transaction,
           price,
           fee_amount,

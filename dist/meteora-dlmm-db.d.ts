@@ -22,6 +22,7 @@ export interface MeteoraDlmmDbTransactions extends MeteoraDlmmDbSchema {
     quote_logo: string;
     is_inverted: number;
     position_is_open: number;
+    is_opening_transaction: number;
     is_closing_transaction: number;
     price: number;
     fee_amount: number;
