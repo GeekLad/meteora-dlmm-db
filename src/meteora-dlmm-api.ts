@@ -104,6 +104,34 @@ export const DLMM_MAP: Map<string, MeteoraDlmmPairData> = new Map(
 const MAX_CONCURRENT_REQUESTS = 20;
 const DELAY_MS = 3000;
 
+interface ApiResponse<T> {
+  isHtml: boolean;
+  isRateLimit: boolean;
+  retryAfter: number;
+  data: T | null;
+}
+
+async function handleApiResponse<T>(
+  response: Response,
+  parser: (text: string) => T,
+): Promise<ApiResponse<T>> {
+  const responseText = await response.text();
+  const isHtml = responseText.trim().startsWith('<!DOCTYPE html>') || responseText.trim().startsWith('<html>');
+  
+  if (isHtml) {
+    const isRateLimit = response.status === 429 || responseText.toLowerCase().includes('rate limit');
+    const retryAfter = parseInt(response.headers.get('retry-after') || '5');
+    return { isHtml, isRateLimit, retryAfter, data: null };
+  }
+
+  return {
+    isHtml: false,
+    isRateLimit: false,
+    retryAfter: 0,
+    data: parser(responseText)
+  };
+}
+
 async function extractPairData(
   pair: MeteoraDlmmPairDetail,
 ): Promise<MeteoraDlmmPairData> {
@@ -166,10 +194,22 @@ export class MeteoraDlmmApi {
   ): Promise<MeteoraDlmmPairData> {
     try {
       const pairResponse = await fetch(METEORA_API + `/pair/${lbPair}`);
-      const pair = JSON.parse(
-        await pairResponse.text(),
-      ) as MeteoraDlmmPairDetail;
-      const pairData = await extractPairData(pair);
+      const result = await handleApiResponse(pairResponse, (text) => 
+        JSON.parse(text) as MeteoraDlmmPairDetail
+      );
+
+      if (result.isHtml) {
+        if (result.isRateLimit) {
+          await new Promise(resolve => setTimeout(resolve, result.retryAfter * 1000));
+          return MeteoraDlmmApi._getDlmmPairData(lbPair);
+        } else {
+          // TODO: Handle other HTML error responses more gracefully
+          // For now, throw error to be caught by outer catch block
+          throw new Error('Received HTML response instead of JSON');
+        }
+      }
+
+      const pairData = await extractPairData(result.data!);
       return pairData;
     } catch (err) {
       throw new Error(`Meteora DLMM pair with address ${lbPair} was not found`);
@@ -220,10 +260,22 @@ export class MeteoraDlmmApi {
       async () => {
         const url = `${METEORA_API}/position/${positionAddress}${endpoint}`;
         const response = await fetch(url);
+        const result = await handleApiResponse(response, (text) => 
+          JSON.parse(text) as Output
+        );
 
-        const json: Output = await response.json();
+        if (result.isHtml) {
+          if (result.isRateLimit) {
+            await new Promise(resolve => setTimeout(resolve, result.retryAfter * 1000));
+            return MeteoraDlmmApi._fetchApiData<Output>(positionAddress, endpoint);
+          } else {
+            // TODO: Handle other HTML error responses more gracefully
+            // For now, return empty array as this is used for transaction lists
+            return [] as unknown as Output;
+          }
+        }
 
-        return json;
+        return result.data!;
       },
     );
   }
