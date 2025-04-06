@@ -104,6 +104,34 @@ export const DLMM_MAP: Map<string, MeteoraDlmmPairData> = new Map(
 const MAX_CONCURRENT_REQUESTS = 20;
 const DELAY_MS = 3000;
 
+interface ApiResponse<T> {
+  isHtml: boolean;
+  isRateLimit: boolean;
+  retryAfter: number;
+  data: T | null;
+}
+
+async function handleApiResponse<T>(
+  response: Response,
+  parser: (text: string) => T,
+): Promise<ApiResponse<T>> {
+  const responseText = await response.text();
+  const isHtml = responseText.trim().startsWith('<!DOCTYPE html>') || responseText.trim().startsWith('<html>');
+  
+  if (isHtml) {
+    const isRateLimit = response.status === 429 || responseText.toLowerCase().includes('rate limit');
+    const retryAfter = parseInt(response.headers.get('retry-after') || '5');
+    return { isHtml, isRateLimit, retryAfter, data: null };
+  }
+
+  return {
+    isHtml: false,
+    isRateLimit: false,
+    retryAfter: 0,
+    data: parser(responseText)
+  };
+}
+
 async function extractPairData(
   pair: MeteoraDlmmPairDetail,
 ): Promise<MeteoraDlmmPairData> {
@@ -154,7 +182,7 @@ export class MeteoraDlmmApi {
     MeteoraDlmmApi._meteoraApi.interval = params.interval;
   }
 
-  static getDlmmPairData(lbPair: string): Promise<MeteoraDlmmPairData> {
+  static getDlmmPairData(lbPair: string): Promise<MeteoraDlmmPairData | null> {
     return MeteoraDlmmApi._meteoraApi.processItem(
       lbPair,
       MeteoraDlmmApi._getDlmmPairData,
@@ -163,16 +191,29 @@ export class MeteoraDlmmApi {
 
   private static async _getDlmmPairData(
     lbPair: string,
-  ): Promise<MeteoraDlmmPairData> {
+  ): Promise<MeteoraDlmmPairData | null> {
     try {
       const pairResponse = await fetch(METEORA_API + `/pair/${lbPair}`);
-      const pair = JSON.parse(
-        await pairResponse.text(),
-      ) as MeteoraDlmmPairDetail;
-      const pairData = await extractPairData(pair);
+      const result = await handleApiResponse(pairResponse, (text) => 
+        JSON.parse(text) as MeteoraDlmmPairDetail
+      );
+
+      if (result.isHtml) {
+        if (result.isRateLimit) {
+          console.log(`Rate limited by Meteora API for pair ${lbPair}. Retrying in ${result.retryAfter} seconds...`);
+          await new Promise(resolve => setTimeout(resolve, result.retryAfter * 1000));
+          return MeteoraDlmmApi._getDlmmPairData(lbPair);
+        } else {
+          console.error(`Received HTML response instead of JSON for pair ${lbPair}`);
+          return null;
+        }
+      }
+
+      const pairData = await extractPairData(result.data!);
       return pairData;
     } catch (err) {
-      throw new Error(`Meteora DLMM pair with address ${lbPair} was not found`);
+      console.error(`Failed to fetch Meteora DLMM pair with address ${lbPair}:`, err);
+      return null;
     }
   }
 
@@ -184,46 +225,67 @@ export class MeteoraDlmmApi {
       this._fetchWithdraws(positionAddress),
       this._fetchFees(positionAddress),
     ]);
-    return { deposits, withdrawals, fees };
+    return { 
+      deposits: deposits || [], 
+      withdrawals: withdrawals || [], 
+      fees: fees || [] 
+    };
   }
 
   private static _fetchDeposits(positionAddress: string) {
-    return MeteoraDlmmApi._fetchApiData(
+    return MeteoraDlmmApi._fetchApiData<MeteoraTransactionData[]>(
       positionAddress,
       "/deposits",
-    ) as Promise<MeteoraTransactionData[]>;
+    );
   }
 
   private static _fetchWithdraws(positionAddress: string) {
-    return MeteoraDlmmApi._fetchApiData(
+    return MeteoraDlmmApi._fetchApiData<MeteoraTransactionData[]>(
       positionAddress,
       "/withdraws",
-    ) as Promise<MeteoraTransactionData[]>;
+    );
   }
 
   private static _fetchFees(positionAddress: string) {
-    return MeteoraDlmmApi._fetchApiData(
+    return MeteoraDlmmApi._fetchApiData<MeteoraClaimFeesData[]>(
       positionAddress,
       "/claim_fees",
-    ) as Promise<MeteoraClaimFeesData[]>;
+    );
   }
 
   private static async _fetchApiData<Output>(
     positionAddress: string,
     endpoint: ApiDataEndpoint,
-  ): Promise<Output> {
+  ): Promise<Output | null> {
     return MeteoraDlmmApi._meteoraApi.processItem(
       {
         positionAddress,
         endpoint,
       },
       async () => {
-        const url = `${METEORA_API}/position/${positionAddress}${endpoint}`;
-        const response = await fetch(url);
+        try {
+          const url = `${METEORA_API}/position/${positionAddress}${endpoint}`;
+          const response = await fetch(url);
+          const result = await handleApiResponse(response, (text) => 
+            JSON.parse(text) as Output
+          );
 
-        const json: Output = await response.json();
+          if (result.isHtml) {
+            if (result.isRateLimit) {
+              console.log(`Rate limited by Meteora API for position ${positionAddress} ${endpoint}. Retrying in ${result.retryAfter} seconds...`);
+              await new Promise(resolve => setTimeout(resolve, result.retryAfter * 1000));
+              return MeteoraDlmmApi._fetchApiData<Output>(positionAddress, endpoint);
+            } else {
+              console.error(`Received HTML response instead of JSON for position ${positionAddress} ${endpoint}`);
+              return null;
+            }
+          }
 
-        return json;
+          return result.data!;
+        } catch (err) {
+          console.error(`Failed to fetch data for position ${positionAddress} ${endpoint}:`, err);
+          return null;
+        }
       },
     );
   }
