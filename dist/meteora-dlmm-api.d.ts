@@ -41,7 +41,7 @@ export declare class MeteoraDlmmApi {
         max: number;
         interval: number;
     }): void;
-    static getDlmmPairData(lbPair: string): Promise<MeteoraDlmmPairData>;
+    static getDlmmPairData(lbPair: string): Promise<MeteoraDlmmPairData | null>;
     private static _getDlmmPairData;
     static getTransactions(positionAddress: string): Promise<MeteoraPositionTransactions>;
     private static _fetchDeposits;

@@ -152,8 +152,13 @@ export default class MeteoraDownloader {
                         if (this._transactionDownloadCancelled) {
                             return this._fetchUsd();
                         }
-                        yield this._db.addPair(missingPair);
-                        console.log(`Added missing pair for ${missingPair.name}`);
+                        if (missingPair) {
+                            yield this._db.addPair(missingPair);
+                            console.log(`Added missing pair for ${missingPair.name}`);
+                        }
+                        else {
+                            console.error(`Unable to obtain data for pair at ${address}`);
+                        }
                         if (this._transactionDownloadCancelled) {
                             return this._fetchUsd();
                         }
