@@ -32,17 +32,26 @@ export type MeteoraDlmmInstructionType =
 
 export type MeteoraDlmmInstructionName =
   | "initializePosition"
+  | "initializePositionPda"
+  | "initializePositionByOperator"
   | "addLiquidity"
+  | "addLiquidity2"
   | "addLiquidityByWeight"
   | "addLiquidityByStrategy"
+  | "addLiquidityByStrategy2"
   | "addLiquidityByStrategyOneSide"
+  | "addLiquidityOneSidePrecise2"
   | "addLiquidityOneSide"
+  | "addLiquidityOneSidePrecise"
   | "removeLiquidity"
+  | "removeLiquidity2"
   | "removeAllLiquidity"
   | "removeLiquiditySingleSide"
   | "removeLiquidityByRange"
+  | "removeLiquidityByRange2"
   | "RemoveLiquidity"
   | "claimFee"
+  | "claimFee2"
   | "closePosition";
 
 const INSTRUCTION_MAP: Map<
@@ -50,17 +59,26 @@ const INSTRUCTION_MAP: Map<
   MeteoraDlmmInstructionType
 > = new Map([
   ["initializePosition", "open"],
+  ["initializePositionPda", "open"],
+  ["initializePositionByOperator", "open"],
   ["addLiquidity", "add"],
+  ["addLiquidity2", "add"],
   ["addLiquidityByWeight", "add"],
   ["addLiquidityByStrategy", "add"],
+  ["addLiquidityByStrategy2", "add"],
   ["addLiquidityByStrategyOneSide", "add"],
   ["addLiquidityOneSide", "add"],
+  ["addLiquidityOneSidePrecise", "add"],
+  ["addLiquidityOneSidePrecise2", "add"],
   ["removeLiquidity", "remove"],
+  ["removeLiquidity2", "remove"],
   ["removeAllLiquidity", "remove"],
   ["removeLiquiditySingleSide", "remove"],
   ["removeLiquidityByRange", "remove"],
+  ["removeLiquidityByRange2", "remove"],
   ["RemoveLiquidity", "remove"],
   ["claimFee", "claim"],
+  ["claimFee2", "claim"],
   ["closePosition", "close"],
 ]);
 

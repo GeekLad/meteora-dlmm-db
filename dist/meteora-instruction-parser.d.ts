@@ -1,7 +1,7 @@
 import type { ParsedTransactionWithMeta } from "@solana/web3.js";
 import { type TokenTransferInfo } from "./solana-transaction-utils";
 export type MeteoraDlmmInstructionType = "open" | "add" | "remove" | "claim" | "close";
-export type MeteoraDlmmInstructionName = "initializePosition" | "addLiquidity" | "addLiquidityByWeight" | "addLiquidityByStrategy" | "addLiquidityByStrategyOneSide" | "addLiquidityOneSide" | "removeLiquidity" | "removeAllLiquidity" | "removeLiquiditySingleSide" | "removeLiquidityByRange" | "RemoveLiquidity" | "claimFee" | "closePosition";
+export type MeteoraDlmmInstructionName = "initializePosition" | "initializePositionPda" | "initializePositionByOperator" | "addLiquidity" | "addLiquidity2" | "addLiquidityByWeight" | "addLiquidityByStrategy" | "addLiquidityByStrategy2" | "addLiquidityByStrategyOneSide" | "addLiquidityOneSidePrecise2" | "addLiquidityOneSide" | "addLiquidityOneSidePrecise" | "removeLiquidity" | "removeLiquidity2" | "removeAllLiquidity" | "removeLiquiditySingleSide" | "removeLiquidityByRange" | "removeLiquidityByRange2" | "RemoveLiquidity" | "claimFee" | "claimFee2" | "closePosition";
 interface MeteoraDlmmAccounts {
     position: string;
     lbPair: string;

@@ -5,17 +5,26 @@ import { getInstructionIndex, getAccountMetas, getTokenTransfers, } from "./sola
 import { getHawksightAccount, getHawksightTokenTransfers, } from "./hawksight-parser";
 const INSTRUCTION_MAP = new Map([
     ["initializePosition", "open"],
+    ["initializePositionPda", "open"],
+    ["initializePositionByOperator", "open"],
     ["addLiquidity", "add"],
+    ["addLiquidity2", "add"],
     ["addLiquidityByWeight", "add"],
     ["addLiquidityByStrategy", "add"],
+    ["addLiquidityByStrategy2", "add"],
     ["addLiquidityByStrategyOneSide", "add"],
     ["addLiquidityOneSide", "add"],
+    ["addLiquidityOneSidePrecise", "add"],
+    ["addLiquidityOneSidePrecise2", "add"],
     ["removeLiquidity", "remove"],
+    ["removeLiquidity2", "remove"],
     ["removeAllLiquidity", "remove"],
     ["removeLiquiditySingleSide", "remove"],
     ["removeLiquidityByRange", "remove"],
+    ["removeLiquidityByRange2", "remove"],
     ["RemoveLiquidity", "remove"],
     ["claimFee", "claim"],
+    ["claimFee2", "claim"],
     ["closePosition", "close"],
 ]);
 const INSTRUCTION_CODER = new BorshInstructionCoder(IDL);
