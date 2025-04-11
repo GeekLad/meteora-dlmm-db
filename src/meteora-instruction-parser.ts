@@ -282,6 +282,7 @@ function getPositionAccounts(
         };
 
       case "addLiquidityOneSide":
+      case "addLiquidityOneSidePrecise":
         return {
           position: accountMetas[0].pubkey.toBase58(),
           lbPair: accountMetas[1].pubkey.toBase58(),
@@ -293,6 +294,30 @@ function getPositionAccounts(
           position: accountMetas[0].pubkey.toBase58(),
           lbPair: accountMetas[1].pubkey.toBase58(),
           sender: hawksightAccount || accountMetas[11].pubkey.toBase58(),
+        };
+
+      case "addLiquidity2":
+      case "addLiquidityByStrategy2":
+      case "removeLiquidity2":
+      case "removeLiquidityByRange2":
+        return {
+          position: accountMetas[0].pubkey.toBase58(),
+          lbPair: accountMetas[1].pubkey.toBase58(),
+          sender: hawksightAccount || accountMetas[9].pubkey.toBase58(),
+        };
+
+      case "addLiquidityOneSidePrecise2":
+        return {
+          position: accountMetas[0].pubkey.toBase58(),
+          lbPair: accountMetas[1].pubkey.toBase58(),
+          sender: hawksightAccount || accountMetas[6].pubkey.toBase58(),
+        };
+
+      case "claimFee2":
+        return {
+          position: accountMetas[1].pubkey.toBase58(),
+          lbPair: accountMetas[0].pubkey.toBase58(),
+          sender: hawksightAccount || accountMetas[2].pubkey.toBase58(),
         };
     }
 
