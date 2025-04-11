@@ -10,8 +10,9 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 import { Connection, PublicKey, } from "@solana/web3.js";
 import { JupiterTokenListApi } from "./jupiter-token-list-api";
 import { MeteoraDlmmApi } from "./meteora-dlmm-api";
-import { parseMeteoraInstructions } from "./meteora-instruction-parser";
+import { parseMeteoraInstructions, } from "./meteora-instruction-parser";
 import { ParsedTransactionStream } from "./solana-transaction-utils";
+import { delay } from "./util";
 export default class MeteoraDownloader {
     get downloadComplete() {
         return this.positionsComplete && !this._fetchingUsd;
@@ -111,6 +112,9 @@ export default class MeteoraDownloader {
                         return this._fetchUsd();
                     }
                     instructionCount++;
+                    if (instruction.accounts.lbPair == "") {
+                        yield this._addMissingLbPair(instruction);
+                    }
                     yield this._db.addInstruction(instruction);
                     this._positionAddresses.add(instruction.accounts.position);
                     this._positionTransactionIds.add(instruction.signature);
@@ -119,6 +123,19 @@ export default class MeteoraDownloader {
             const elapsed = Date.now() - start;
             console.log(`Downloaded ${instructionCount} instructions in ${elapsed}ms`);
             this._fetchMissingPairs();
+        });
+    }
+    _addMissingLbPair(instruction) {
+        return __awaiter(this, void 0, void 0, function* () {
+            while (instruction.accounts.lbPair == "") {
+                const lbPair = yield this._db.getLbPair(instruction.accounts.position);
+                if (lbPair) {
+                    instruction.accounts.lbPair = lbPair;
+                }
+                else {
+                    yield delay(1);
+                }
+            }
         });
     }
     _onNewSignaturesReceived(signatures) {

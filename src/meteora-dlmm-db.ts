@@ -909,6 +909,31 @@ export default class MeteoraDlmmDb {
     });
   }
 
+  async getLbPair(position_address: string): Promise<string | undefined> {
+    return this._queueDbCall(() => {
+      const result = this._db
+        .exec(
+          `
+          SELECT 
+            pair_address
+          FROM
+            instructions
+          WHERE
+            position_address = '${position_address}'
+          LIMIT 1
+        `,
+        )
+        .map((result) => result.values)
+        .flat()
+        .flat();
+
+      if (result.length === 0) {
+        return undefined;
+      }
+      return result[0] as string;
+    });
+  }
+
   async addPair(pair: MeteoraDlmmPairData) {
     await this._queueDbCall(() => {
       const {

@@ -8,8 +8,12 @@ import {
 import { JupiterTokenListApi, TokenMeta } from "./jupiter-token-list-api";
 import { MeteoraDlmmApi } from "./meteora-dlmm-api";
 import MeteoraDlmmDb from "./meteora-dlmm-db";
-import { parseMeteoraInstructions } from "./meteora-instruction-parser";
+import {
+  MeteoraDlmmInstruction,
+  parseMeteoraInstructions,
+} from "./meteora-instruction-parser";
 import { ParsedTransactionStream } from "./solana-transaction-utils";
+import { delay } from "./util";
 
 export interface MeteoraDlmmDownloaderStats {
   downloadingComplete: boolean;
@@ -177,6 +181,9 @@ export default class MeteoraDownloader {
           return this._fetchUsd();
         }
         instructionCount++;
+        if (instruction.accounts.lbPair == "") {
+          await this._addMissingLbPair(instruction);
+        }
         await this._db.addInstruction(instruction);
         this._positionAddresses.add(instruction.accounts.position);
         this._positionTransactionIds.add(instruction.signature);
@@ -185,6 +192,17 @@ export default class MeteoraDownloader {
     const elapsed = Date.now() - start;
     console.log(`Downloaded ${instructionCount} instructions in ${elapsed}ms`);
     this._fetchMissingPairs();
+  }
+
+  private async _addMissingLbPair(instruction: MeteoraDlmmInstruction) {
+    while (instruction.accounts.lbPair == "") {
+      const lbPair = await this._db.getLbPair(instruction.accounts.position);
+      if (lbPair) {
+        instruction.accounts.lbPair = lbPair;
+      } else {
+        await delay(1);
+      }
+    }
   }
 
   private async _onNewSignaturesReceived(signatures: ConfirmedSignatureInfo[]) {

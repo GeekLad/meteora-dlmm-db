@@ -65,6 +65,7 @@ export default class MeteoraDownloader {
     private _init;
     stats(): Promise<MeteoraDlmmDownloaderStats>;
     private _loadInstructions;
+    private _addMissingLbPair;
     private _onNewSignaturesReceived;
     private _fetchMissingPairs;
     private _fetchMissingTokens;

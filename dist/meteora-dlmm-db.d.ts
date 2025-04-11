@@ -58,6 +58,7 @@ export default class MeteoraDlmmDb {
     download(config: MeteoraDownloaderConfig): MeteoraDlmmDownloader;
     addInstruction(instruction: MeteoraDlmmInstruction): Promise<void>;
     addTransfers(instruction: MeteoraDlmmInstruction): Promise<void>;
+    getLbPair(position_address: string): Promise<string | undefined>;
     addPair(pair: MeteoraDlmmPairData): Promise<void>;
     addToken(token: TokenMeta): Promise<void>;
     addUsdTransactions(position_address: string, transactions: MeteoraPositionTransactions): Promise<void>;

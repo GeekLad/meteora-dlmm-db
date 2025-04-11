@@ -839,6 +839,29 @@ export default class MeteoraDlmmDb {
             });
         });
     }
+    getLbPair(position_address) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return this._queueDbCall(() => {
+                const result = this._db
+                    .exec(`
+          SELECT 
+            pair_address
+          FROM
+            instructions
+          WHERE
+            position_address = '${position_address}'
+          LIMIT 1
+        `)
+                    .map((result) => result.values)
+                    .flat()
+                    .flat();
+                if (result.length === 0) {
+                    return undefined;
+                }
+                return result[0];
+            });
+        });
+    }
     addPair(pair) {
         return __awaiter(this, void 0, void 0, function* () {
             yield this._queueDbCall(() => {
