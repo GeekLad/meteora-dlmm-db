@@ -26,6 +26,8 @@ const INSTRUCTION_MAP = new Map([
     ["claimFee", "claim"],
     ["claimFee2", "claim"],
     ["closePosition", "close"],
+    ["closePositionIfEmpty", "close"],
+    ["closePosition2", "close"],
 ]);
 const INSTRUCTION_CODER = new BorshInstructionCoder(IDL);
 let EVENT_CODER = new BorshEventCoder(IDL);
@@ -180,6 +182,13 @@ function getPositionAccounts(decodedInstruction, accountMetas, hawksightAccount)
                     position: accountMetas[1].pubkey.toBase58(),
                     lbPair: accountMetas[0].pubkey.toBase58(),
                     sender: hawksightAccount || accountMetas[2].pubkey.toBase58(),
+                };
+            case "closePosition2":
+            case "closePositionIfEmpty":
+                return {
+                    position: accountMetas[0].pubkey.toBase58(),
+                    lbPair: "",
+                    sender: hawksightAccount || accountMetas[1].pubkey.toBase58(),
                 };
         }
         return {

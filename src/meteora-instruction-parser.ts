@@ -52,7 +52,9 @@ export type MeteoraDlmmInstructionName =
   | "RemoveLiquidity"
   | "claimFee"
   | "claimFee2"
-  | "closePosition";
+  | "closePosition"
+  | "closePositionIfEmpty"
+  | "closePosition2";
 
 const INSTRUCTION_MAP: Map<
   MeteoraDlmmInstructionName,
@@ -80,6 +82,8 @@ const INSTRUCTION_MAP: Map<
   ["claimFee", "claim"],
   ["claimFee2", "claim"],
   ["closePosition", "close"],
+  ["closePositionIfEmpty", "close"],
+  ["closePosition2", "close"],
 ]);
 
 interface MeteoraDlmmDecodedInstruction extends Instruction {
@@ -318,6 +322,14 @@ function getPositionAccounts(
           position: accountMetas[1].pubkey.toBase58(),
           lbPair: accountMetas[0].pubkey.toBase58(),
           sender: hawksightAccount || accountMetas[2].pubkey.toBase58(),
+        };
+
+      case "closePosition2":
+      case "closePositionIfEmpty":
+        return {
+          position: accountMetas[0].pubkey.toBase58(),
+          lbPair: "",
+          sender: hawksightAccount || accountMetas[1].pubkey.toBase58(),
         };
     }
 
