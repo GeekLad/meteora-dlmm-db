@@ -16,7 +16,6 @@ import {
   getInstructionIndex,
   getAccountMetas,
   getTokenTransfers,
-  type TokenTransferInfo,
 } from "./solana-transaction-utils";
 import {
   getHawksightAccount,
@@ -95,6 +94,15 @@ interface MeteoraDlmmAccounts {
   position: string;
   lbPair: string;
   sender: string;
+  tokenXMint?: string | undefined;
+  tokenYMint?: string | undefined;
+  userTokenX?: string | undefined;
+  userTokenY?: string | undefined;
+}
+
+export interface TokenTransferInfo {
+  mint: string;
+  amount: number;
 }
 
 export interface MeteoraDlmmInstruction {
@@ -224,11 +232,12 @@ function getMeteoraInstructionData(
     accountMetas,
     hawksightAccount,
   );
-  const tokenTransfers = !hawksightAccount
+  const parsedTokenTransfers = !hawksightAccount
     ? getTokenTransfers(transaction, index)
     : getHawksightTokenTransfers(transaction, instruction, index);
+  const tokenTransfers = parseTokenTransfers(parsedTokenTransfers, accounts);
   const activeBinId =
-    tokenTransfers.length > 0 ? getActiveBinId(transaction, index) : null;
+    parsedTokenTransfers.length > 0 ? getActiveBinId(transaction, index) : null;
   const removalBps =
     instructionType == "remove" ? getRemovalBps(decodedInstruction) : null;
   return {
@@ -243,6 +252,51 @@ function getMeteoraInstructionData(
     activeBinId,
     removalBps,
   };
+}
+
+function parseTokenTransfers(
+  transfers: (ParsedInstruction | PartiallyDecodedInstruction)[],
+  accounts: MeteoraDlmmAccounts,
+): TokenTransferInfo[] {
+  return transfers
+    .map((transfer) => {
+      if (
+        "program" in transfer &&
+        transfer.program == "spl-token" &&
+        "parsed" in transfer
+      ) {
+        if (transfer.parsed.type == "transferChecked") {
+          const { mint, tokenAmount } = transfer.parsed.info;
+          const amount = Number(tokenAmount.amount);
+
+          return {
+            mint,
+            amount,
+          };
+        }
+        if (
+          !accounts.tokenXMint ||
+          !accounts.tokenYMint ||
+          !accounts.userTokenX ||
+          !accounts.userTokenY
+        ) {
+          throw new Error("Mints were not found in instruction");
+        }
+        const mint =
+          transfer.parsed.info.source == accounts.tokenXMint ||
+          transfer.parsed.info.source == accounts.userTokenX
+            ? accounts.tokenXMint
+            : accounts.tokenYMint;
+        const amount = Number(transfer.parsed.info.amount);
+
+        return {
+          mint,
+          amount,
+        };
+      }
+      throw new Error("Unrecognized transfer format");
+    })
+    .filter((transfer) => transfer !== undefined);
 }
 
 function getPositionAccounts(
@@ -267,14 +321,27 @@ function getPositionAccounts(
       (account) => account.name == "Sender" || account.name == "Owner",
     )!;
     const sender = hawksightAccount || senderAccount.pubkey.toBase58();
-    const tokenMintXAccount = accounts.find(
-      (account) => account.name == "Token X Mint",
-    );
+    const tokenXMint = accounts
+      .find((account) => account.name == "Token X Mint")
+      ?.pubkey?.toBase58();
+    const tokenYMint = accounts
+      .find((account) => account.name == "Token Y Mint")
+      ?.pubkey?.toBase58();
+    const userTokenX = accounts
+      .find((account) => account.name == "User Token X")
+      ?.pubkey?.toBase58();
+    const userTokenY = accounts
+      .find((account) => account.name == "User Token Y")
+      ?.pubkey?.toBase58();
 
     return {
       position,
       lbPair,
       sender,
+      tokenXMint,
+      tokenYMint,
+      userTokenX,
+      userTokenY,
     };
   } catch (err) {
     switch (decodedInstruction.name) {

@@ -3,7 +3,6 @@ import {
   PublicKey,
   type AccountMeta,
   type ConfirmedSignatureInfo,
-  type ConnectionConfig,
   type ParsedInstruction,
   type ParsedTransactionWithMeta,
   type PartiallyDecodedInstruction,
@@ -12,29 +11,6 @@ import { MeteoraDownloaderConfig } from "./meteora-dlmm-downloader";
 import { ApiThrottle, chunkArray } from "./util";
 
 const CHUNK_SIZE = 250;
-
-export interface TokenTransferInfo {
-  mint: string;
-  amount: number;
-}
-
-export interface ParsedTransferInstruction extends ParsedInstruction {
-  parsed: {
-    info: {
-      authority: string;
-      destination: string;
-      mint: string;
-      source: string;
-      tokenAmount: {
-        amount: string;
-        decimals: number;
-        uiAmount: number;
-        uiAmountString: string;
-      };
-    };
-    type: "transferChecked";
-  };
-}
 
 export function getInstructionIndex(
   transaction: ParsedTransactionWithMeta,
@@ -90,7 +66,7 @@ export function getAccountMetas(
 export function getTokenTransfers(
   transaction: ParsedTransactionWithMeta,
   index: number,
-): TokenTransferInfo[] {
+): (ParsedInstruction | PartiallyDecodedInstruction)[] {
   if (index == -1) {
     return [];
   }
@@ -103,27 +79,13 @@ export function getTokenTransfers(
     return [];
   }
 
-  const transfers = instruction.instructions.filter(
+  return instruction.instructions.filter(
     (i) =>
       "program" in i &&
       i.program == "spl-token" &&
       "parsed" in i &&
-      i.parsed.type == "transferChecked",
-  ) as ParsedTransferInstruction[];
-
-  if (transfers.length == 0) {
-    return [];
-  }
-
-  return transfers.map((transfer) => {
-    const { mint, tokenAmount } = transfer.parsed.info;
-    const { uiAmount: amount } = tokenAmount;
-
-    return {
-      mint,
-      amount,
-    };
-  });
+      i.parsed.type.match(/^transfer/) !== null,
+  );
 }
 
 interface ParsedTransactionStreamConfig extends MeteoraDownloaderConfig {

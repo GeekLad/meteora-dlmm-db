@@ -1,12 +1,9 @@
 import { LBCLMM_PROGRAM_IDS } from "@meteora-ag/dlmm";
 import {
+  ParsedInstruction,
   ParsedTransactionWithMeta,
   PartiallyDecodedInstruction,
 } from "@solana/web3.js";
-import {
-  ParsedTransferInstruction,
-  TokenTransferInfo,
-} from "./solana-transaction-utils";
 
 export const HAWKSIGHT_PROGRAM_ID =
   "FqGg2Y1FNxMiGd51Q6UETixQWkF5fB92MysbYogRJb3P";
@@ -50,7 +47,7 @@ export function getHawksightTokenTransfers(
   transaction: ParsedTransactionWithMeta,
   meteoraInstruction: PartiallyDecodedInstruction,
   index: number,
-): TokenTransferInfo[] {
+): (ParsedInstruction | PartiallyDecodedInstruction)[] {
   if (index == -1) {
     return [];
   }
@@ -73,7 +70,7 @@ export function getHawksightTokenTransfers(
     )
     .map((i) => hawksightInstruction.instructions.indexOf(i))[0];
 
-  const transfers = hawksightInstruction.instructions.filter(
+  return hawksightInstruction.instructions.filter(
     (i, index) =>
       "program" in i &&
       i.program == "spl-token" &&
@@ -81,19 +78,5 @@ export function getHawksightTokenTransfers(
       i.parsed.type == "transferChecked" &&
       index > meteoraInstructionIndex &&
       index < nextMeteoraInstructionIndex,
-  ) as ParsedTransferInstruction[];
-
-  if (transfers.length == 0) {
-    return [];
-  }
-
-  return transfers.map((transfer) => {
-    const { mint, tokenAmount } = transfer.parsed.info;
-    const { uiAmount: amount } = tokenAmount;
-
-    return {
-      mint,
-      amount,
-    };
-  });
+  );
 }
