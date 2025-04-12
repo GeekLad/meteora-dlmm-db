@@ -1,29 +1,8 @@
 import { type AccountMeta, type ConfirmedSignatureInfo, type ParsedInstruction, type ParsedTransactionWithMeta, type PartiallyDecodedInstruction } from "@solana/web3.js";
 import { MeteoraDownloaderConfig } from "./meteora-dlmm-downloader";
-export interface TokenTransferInfo {
-    mint: string;
-    amount: number;
-}
-export interface ParsedTransferInstruction extends ParsedInstruction {
-    parsed: {
-        info: {
-            authority: string;
-            destination: string;
-            mint: string;
-            source: string;
-            tokenAmount: {
-                amount: string;
-                decimals: number;
-                uiAmount: number;
-                uiAmountString: string;
-            };
-        };
-        type: "transferChecked";
-    };
-}
 export declare function getInstructionIndex(transaction: ParsedTransactionWithMeta, instruction: PartiallyDecodedInstruction): number;
 export declare function getAccountMetas(transaction: ParsedTransactionWithMeta, instruction: PartiallyDecodedInstruction): AccountMeta[];
-export declare function getTokenTransfers(transaction: ParsedTransactionWithMeta, index: number): TokenTransferInfo[];
+export declare function getTokenTransfers(transaction: ParsedTransactionWithMeta, index: number): (ParsedInstruction | PartiallyDecodedInstruction)[];
 interface ParsedTransactionStreamConfig extends MeteoraDownloaderConfig {
     onParsedTransactionsReceived: (transactions: (ParsedTransactionWithMeta | null)[]) => Promise<any>;
     onSignaturesReceived?: (signatures: ConfirmedSignatureInfo[]) => Promise<any>;

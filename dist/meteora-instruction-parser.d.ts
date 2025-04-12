@@ -1,11 +1,18 @@
 import type { ParsedTransactionWithMeta } from "@solana/web3.js";
-import { type TokenTransferInfo } from "./solana-transaction-utils";
 export type MeteoraDlmmInstructionType = "open" | "add" | "remove" | "claim" | "close";
 export type MeteoraDlmmInstructionName = "initializePosition" | "initializePositionPda" | "initializePositionByOperator" | "addLiquidity" | "addLiquidity2" | "addLiquidityByWeight" | "addLiquidityByStrategy" | "addLiquidityByStrategy2" | "addLiquidityByStrategyOneSide" | "addLiquidityOneSidePrecise2" | "addLiquidityOneSide" | "addLiquidityOneSidePrecise" | "removeLiquidity" | "removeLiquidity2" | "removeAllLiquidity" | "removeLiquiditySingleSide" | "removeLiquidityByRange" | "removeLiquidityByRange2" | "RemoveLiquidity" | "claimFee" | "claimFee2" | "closePosition" | "closePositionIfEmpty" | "closePosition2";
 interface MeteoraDlmmAccounts {
     position: string;
     lbPair: string;
     sender: string;
+    tokenXMint?: string | undefined;
+    tokenYMint?: string | undefined;
+    userTokenX?: string | undefined;
+    userTokenY?: string | undefined;
+}
+export interface TokenTransferInfo {
+    mint: string;
+    amount: number;
 }
 export interface MeteoraDlmmInstruction {
     isHawksight: boolean;

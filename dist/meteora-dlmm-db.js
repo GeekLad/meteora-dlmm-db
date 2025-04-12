@@ -248,8 +248,8 @@ export default class MeteoraDlmmDb {
             MAX(CASE WHEN i.instruction_type = 'close' THEN 1 END) OVER (PARTITION BY i.position_address RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) IS NULL position_is_open,
             CASE WHEN i.instruction_type = 'open' THEN 1 ELSE 0 END is_opening_transaction,
             CASE WHEN i.instruction_type = 'close' THEN 1 ELSE 0 END is_closing_transaction,
-            COALESCE(ttx.amount, 0) x_amount,
-            COALESCE(tty.amount, 0) y_amount,
+            COALESCE(ttx.amount, 0) / POWER(10, x_decimals) x_amount,
+            COALESCE(tty.amount, 0) / POWER(10, y_decimals) y_amount,
             COALESCE(ttx.usd_amount, 0) + COALESCE(tty.usd_amount, 0) usd_amount
           FROM
             instructions i

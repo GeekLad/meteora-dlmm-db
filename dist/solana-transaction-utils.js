@@ -51,21 +51,10 @@ export function getTokenTransfers(transaction, index) {
     if (instruction == undefined) {
         return [];
     }
-    const transfers = instruction.instructions.filter((i) => "program" in i &&
+    return instruction.instructions.filter((i) => "program" in i &&
         i.program == "spl-token" &&
         "parsed" in i &&
-        i.parsed.type == "transferChecked");
-    if (transfers.length == 0) {
-        return [];
-    }
-    return transfers.map((transfer) => {
-        const { mint, tokenAmount } = transfer.parsed.info;
-        const { uiAmount: amount } = tokenAmount;
-        return {
-            mint,
-            amount,
-        };
-    });
+        i.parsed.type.match(/^transfer/) !== null);
 }
 export class ParsedTransactionStream {
     get cancelled() {

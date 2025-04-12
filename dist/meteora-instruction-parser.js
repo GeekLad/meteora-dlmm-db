@@ -107,10 +107,11 @@ function getMeteoraInstructionData(transaction, instruction, hawksightAccount) {
     const instructionType = INSTRUCTION_MAP.get(decodedInstruction.name);
     const accountMetas = getAccountMetas(transaction, instruction);
     const accounts = getPositionAccounts(decodedInstruction, accountMetas, hawksightAccount);
-    const tokenTransfers = !hawksightAccount
+    const parsedTokenTransfers = !hawksightAccount
         ? getTokenTransfers(transaction, index)
         : getHawksightTokenTransfers(transaction, instruction, index);
-    const activeBinId = tokenTransfers.length > 0 ? getActiveBinId(transaction, index) : null;
+    const tokenTransfers = parseTokenTransfers(parsedTokenTransfers, accounts);
+    const activeBinId = parsedTokenTransfers.length > 0 ? getActiveBinId(transaction, index) : null;
     const removalBps = instructionType == "remove" ? getRemovalBps(decodedInstruction) : null;
     return {
         isHawksight: Boolean(hawksightAccount),
@@ -125,7 +126,42 @@ function getMeteoraInstructionData(transaction, instruction, hawksightAccount) {
         removalBps,
     };
 }
+function parseTokenTransfers(transfers, accounts) {
+    return transfers
+        .map((transfer) => {
+        if ("program" in transfer &&
+            transfer.program == "spl-token" &&
+            "parsed" in transfer) {
+            if (transfer.parsed.type == "transferChecked") {
+                const { mint, tokenAmount } = transfer.parsed.info;
+                const amount = Number(tokenAmount.amount);
+                return {
+                    mint,
+                    amount,
+                };
+            }
+            if (!accounts.tokenXMint ||
+                !accounts.tokenYMint ||
+                !accounts.userTokenX ||
+                !accounts.userTokenY) {
+                throw new Error("Mints were not found in instruction");
+            }
+            const mint = transfer.parsed.info.source == accounts.tokenXMint ||
+                transfer.parsed.info.source == accounts.userTokenX
+                ? accounts.tokenXMint
+                : accounts.tokenYMint;
+            const amount = Number(transfer.parsed.info.amount);
+            return {
+                mint,
+                amount,
+            };
+        }
+        throw new Error("Unrecognized transfer format");
+    })
+        .filter((transfer) => transfer !== undefined);
+}
 function getPositionAccounts(decodedInstruction, accountMetas, hawksightAccount) {
+    var _a, _b, _c, _d, _e, _f, _g, _h;
     try {
         const { accounts } = INSTRUCTION_CODER.format(decodedInstruction, accountMetas);
         const positionAccount = accounts.find((account) => account.name == "Position");
@@ -134,11 +170,22 @@ function getPositionAccounts(decodedInstruction, accountMetas, hawksightAccount)
         const lbPair = lbPairAccount.pubkey.toBase58();
         const senderAccount = accounts.find((account) => account.name == "Sender" || account.name == "Owner");
         const sender = hawksightAccount || senderAccount.pubkey.toBase58();
-        const tokenMintXAccount = accounts.find((account) => account.name == "Token X Mint");
+        const tokenXMint = (_b = (_a = accounts
+            .find((account) => account.name == "Token X Mint")) === null || _a === void 0 ? void 0 : _a.pubkey) === null || _b === void 0 ? void 0 : _b.toBase58();
+        const tokenYMint = (_d = (_c = accounts
+            .find((account) => account.name == "Token Y Mint")) === null || _c === void 0 ? void 0 : _c.pubkey) === null || _d === void 0 ? void 0 : _d.toBase58();
+        const userTokenX = (_f = (_e = accounts
+            .find((account) => account.name == "User Token X")) === null || _e === void 0 ? void 0 : _e.pubkey) === null || _f === void 0 ? void 0 : _f.toBase58();
+        const userTokenY = (_h = (_g = accounts
+            .find((account) => account.name == "User Token Y")) === null || _g === void 0 ? void 0 : _g.pubkey) === null || _h === void 0 ? void 0 : _h.toBase58();
         return {
             position,
             lbPair,
             sender,
+            tokenXMint,
+            tokenYMint,
+            userTokenX,
+            userTokenY,
         };
     }
     catch (err) {

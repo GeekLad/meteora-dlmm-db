@@ -39,22 +39,11 @@ export function getHawksightTokenTransfers(transaction, meteoraInstruction, inde
         .filter((i, index) => i.programId.toBase58() == LBCLMM_PROGRAM_IDS["mainnet-beta"] &&
         index > meteoraInstructionIndex + 1)
         .map((i) => hawksightInstruction.instructions.indexOf(i))[0];
-    const transfers = hawksightInstruction.instructions.filter((i, index) => "program" in i &&
+    return hawksightInstruction.instructions.filter((i, index) => "program" in i &&
         i.program == "spl-token" &&
         "parsed" in i &&
         i.parsed.type == "transferChecked" &&
         index > meteoraInstructionIndex &&
         index < nextMeteoraInstructionIndex);
-    if (transfers.length == 0) {
-        return [];
-    }
-    return transfers.map((transfer) => {
-        const { mint, tokenAmount } = transfer.parsed.info;
-        const { uiAmount: amount } = tokenAmount;
-        return {
-            mint,
-            amount,
-        };
-    });
 }
 //# sourceMappingURL=hawksight-parser.js.map
