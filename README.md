@@ -89,7 +89,7 @@ To download transactions:
 
 ```ts
 const downloader = db.download({
-  rpc: "<Valid RPC URL goes here>",
+  endpoint: "<Valid RPC URL goes here>",
   account: "<Valid Solana Wallet Address goes here>",
 });
 ```
