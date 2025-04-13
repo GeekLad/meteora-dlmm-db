@@ -146,7 +146,7 @@ function parseTokenTransfers(transfers, accounts) {
                 !accounts.userTokenY) {
                 throw new Error("Mints were not found in instruction, unable to parse token transfers");
             }
-            const mint = transfer.parsed.info.source == accounts.tokenXMint ||
+            const mint = transfer.parsed.info.source == accounts.userTokenX ||
                 transfer.parsed.info.destination == accounts.userTokenX
                 ? accounts.tokenXMint
                 : accounts.tokenYMint;

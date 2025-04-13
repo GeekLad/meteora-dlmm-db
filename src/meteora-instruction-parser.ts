@@ -285,7 +285,7 @@ function parseTokenTransfers(
           );
         }
         const mint =
-          transfer.parsed.info.source == accounts.tokenXMint ||
+          transfer.parsed.info.source == accounts.userTokenX ||
           transfer.parsed.info.destination == accounts.userTokenX
             ? accounts.tokenXMint
             : accounts.tokenYMint;
