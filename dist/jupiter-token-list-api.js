@@ -10,9 +10,10 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 var _a;
 import cache from "./jupiter-token-list-cache";
 import { ApiThrottleCache } from "./util";
-const JUPITER_TOKEN_LIST_API = "https://tokens.jup.ag";
-const MAX_CONCURRENT_REQUESTS = 10;
-const DELAY_MS = 30 * 1000;
+const JUPITER_LEGACY_TOKEN_LIST_API = "https://tokens.jup.ag";
+const JUPITER_V2_TOKEN_API = "https://lite-api.jup.ag/tokens/v2";
+const MAX_CONCURRENT_REQUESTS = 1;
+const DELAY_MS = 1 * 1000;
 const JUPITER_TOKEN_LIST_CACHE = cache;
 export const TOKEN_MAP = new Map(JUPITER_TOKEN_LIST_CACHE.tokens.map((array) => {
     const [address, name, symbol, decimals, logoURI] = array;
@@ -20,7 +21,7 @@ export const TOKEN_MAP = new Map(JUPITER_TOKEN_LIST_CACHE.tokens.map((array) => 
 }));
 export function getFullJupiterTokenList() {
     return __awaiter(this, void 0, void 0, function* () {
-        const response = yield fetch(JUPITER_TOKEN_LIST_API + "/tokens_with_markets");
+        const response = yield fetch(JUPITER_LEGACY_TOKEN_LIST_API + "/tokens_with_markets");
         const responseText = yield response.text();
         const data = JSON.parse(responseText);
         return data.map((token) => {
@@ -39,7 +40,7 @@ export class JupiterTokenListApi {
     }
     static _getToken(address) {
         return __awaiter(this, void 0, void 0, function* () {
-            const response = yield fetch(JUPITER_TOKEN_LIST_API + `/token/${address}`);
+            const response = yield fetch(JUPITER_V2_TOKEN_API + `/search?query=${address}`);
             if (response.status == 429) {
                 throw new Error(`Too many requests made to Jupiter API`);
             }

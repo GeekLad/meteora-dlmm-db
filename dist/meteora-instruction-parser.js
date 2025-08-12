@@ -1,33 +1,31 @@
 import { IDL, LBCLMM_PROGRAM_IDS } from "@meteora-ag/dlmm";
-import { BorshEventCoder, BorshInstructionCoder, } from "@project-serum/anchor";
-import { base64, bs58 } from "@project-serum/anchor/dist/cjs/utils/bytes";
+import { BorshEventCoder, BorshInstructionCoder, } from "@coral-xyz/anchor";
+import { base64, bs58 } from "@coral-xyz/anchor/dist/cjs/utils/bytes";
 import { getInstructionIndex, getAccountMetas, getTokenTransfers, } from "./solana-transaction-utils";
 import { getHawksightAccount, getHawksightTokenTransfers, } from "./hawksight-parser";
 const INSTRUCTION_MAP = new Map([
-    ["initializePosition", "open"],
-    ["initializePositionPda", "open"],
-    ["initializePositionByOperator", "open"],
-    ["addLiquidity", "add"],
-    ["addLiquidity2", "add"],
-    ["addLiquidityByWeight", "add"],
-    ["addLiquidityByStrategy", "add"],
-    ["addLiquidityByStrategy2", "add"],
-    ["addLiquidityByStrategyOneSide", "add"],
-    ["addLiquidityOneSide", "add"],
-    ["addLiquidityOneSidePrecise", "add"],
-    ["addLiquidityOneSidePrecise2", "add"],
-    ["removeLiquidity", "remove"],
-    ["removeLiquidity2", "remove"],
-    ["removeAllLiquidity", "remove"],
-    ["removeLiquiditySingleSide", "remove"],
-    ["removeLiquidityByRange", "remove"],
-    ["removeLiquidityByRange2", "remove"],
-    ["RemoveLiquidity", "remove"],
-    ["claimFee", "claim"],
-    ["claimFee2", "claim"],
-    ["closePosition", "close"],
-    ["closePositionIfEmpty", "close"],
-    ["closePosition2", "close"],
+    ["initialize_position", "open"],
+    ["initialize_position_pda", "open"],
+    ["initialize_position_by_operator", "open"],
+    ["add_liquidity", "add"],
+    ["add_liquidity2", "add"],
+    ["add_liquidity_by_weight", "add"],
+    ["add_liquidity_by_strategy", "add"],
+    ["add_liquidity_by_strategy2", "add"],
+    ["add_liquidity_by_strategy_one_side", "add"],
+    ["add_liquidity_one_side", "add"],
+    ["add_liquidity_one_side_precise", "add"],
+    ["add_liquidity_one_side_precise2", "add"],
+    ["remove_liquidity", "remove"],
+    ["remove_liquidity2", "remove"],
+    ["remove_all_liquidity", "remove"],
+    ["remove_liquidity_by_range", "remove"],
+    ["remove_liquidity_by_range2", "remove"],
+    ["claim_fee", "claim"],
+    ["claim_fee2", "claim"],
+    ["close_position", "close"],
+    ["close_position_if_empty", "close"],
+    ["close_position2", "close"],
 ]);
 const INSTRUCTION_CODER = new BorshInstructionCoder(IDL);
 let EVENT_CODER = new BorshEventCoder(IDL);
@@ -166,18 +164,18 @@ function getPositionAccounts(decodedInstruction, accountMetas, hawksightAccount)
         const { accounts } = INSTRUCTION_CODER.format(decodedInstruction, accountMetas);
         const positionAccount = accounts.find((account) => account.name == "Position");
         const position = positionAccount.pubkey.toBase58();
-        const lbPairAccount = accounts.find((account) => account.name == "Lb Pair");
+        const lbPairAccount = accounts.find((account) => account.name == "Lb_pair");
         const lbPair = lbPairAccount.pubkey.toBase58();
         const senderAccount = accounts.find((account) => account.name == "Sender" || account.name == "Owner");
         const sender = hawksightAccount || senderAccount.pubkey.toBase58();
         const tokenXMint = (_b = (_a = accounts
-            .find((account) => account.name == "Token X Mint")) === null || _a === void 0 ? void 0 : _a.pubkey) === null || _b === void 0 ? void 0 : _b.toBase58();
+            .find((account) => account.name == "Token_x_mint")) === null || _a === void 0 ? void 0 : _a.pubkey) === null || _b === void 0 ? void 0 : _b.toBase58();
         const tokenYMint = (_d = (_c = accounts
-            .find((account) => account.name == "Token Y Mint")) === null || _c === void 0 ? void 0 : _c.pubkey) === null || _d === void 0 ? void 0 : _d.toBase58();
+            .find((account) => account.name == "Token_y_mint")) === null || _c === void 0 ? void 0 : _c.pubkey) === null || _d === void 0 ? void 0 : _d.toBase58();
         const userTokenX = (_f = (_e = accounts
-            .find((account) => account.name == "User Token X")) === null || _e === void 0 ? void 0 : _e.pubkey) === null || _f === void 0 ? void 0 : _f.toBase58();
+            .find((account) => account.name == "User_token_x")) === null || _e === void 0 ? void 0 : _e.pubkey) === null || _f === void 0 ? void 0 : _f.toBase58();
         const userTokenY = (_h = (_g = accounts
-            .find((account) => account.name == "User Token Y")) === null || _g === void 0 ? void 0 : _g.pubkey) === null || _h === void 0 ? void 0 : _h.toBase58();
+            .find((account) => account.name == "User_token_y")) === null || _g === void 0 ? void 0 : _g.pubkey) === null || _h === void 0 ? void 0 : _h.toBase58();
         return {
             position,
             lbPair,
@@ -190,48 +188,84 @@ function getPositionAccounts(decodedInstruction, accountMetas, hawksightAccount)
     }
     catch (err) {
         switch (decodedInstruction.name) {
-            case "initializePosition":
+            case "initialize_position":
                 return {
                     position: accountMetas[1].pubkey.toBase58(),
                     lbPair: accountMetas[2].pubkey.toBase58(),
                     sender: hawksightAccount || accountMetas[3].pubkey.toBase58(),
                 };
-            case "addLiquidityOneSide":
-            case "addLiquidityOneSidePrecise":
+            case "add_liquidity_one_side":
+            case "add_liquidity_one_side_precise":
                 return {
                     position: accountMetas[0].pubkey.toBase58(),
                     lbPair: accountMetas[1].pubkey.toBase58(),
                     sender: hawksightAccount || accountMetas[8].pubkey.toBase58(),
                 };
-            case "addLiquidityByWeight":
+            case "add_liquidity_by_weight":
                 return {
                     position: accountMetas[0].pubkey.toBase58(),
                     lbPair: accountMetas[1].pubkey.toBase58(),
                     sender: hawksightAccount || accountMetas[11].pubkey.toBase58(),
                 };
-            case "addLiquidity2":
-            case "addLiquidityByStrategy2":
-            case "removeLiquidity2":
-            case "removeLiquidityByRange2":
+            case "add_liquidity2":
+            case "add_liquidity_by_strategy2":
+            case "remove_liquidity2":
+            case "remove_liquidity_by_range2":
                 return {
                     position: accountMetas[0].pubkey.toBase58(),
                     lbPair: accountMetas[1].pubkey.toBase58(),
                     sender: hawksightAccount || accountMetas[9].pubkey.toBase58(),
                 };
-            case "addLiquidityOneSidePrecise2":
+            case "add_liquidity_one_side_precise2":
                 return {
                     position: accountMetas[0].pubkey.toBase58(),
                     lbPair: accountMetas[1].pubkey.toBase58(),
                     sender: hawksightAccount || accountMetas[6].pubkey.toBase58(),
                 };
-            case "claimFee2":
+            case "claim_fee2":
                 return {
                     position: accountMetas[1].pubkey.toBase58(),
                     lbPair: accountMetas[0].pubkey.toBase58(),
                     sender: hawksightAccount || accountMetas[2].pubkey.toBase58(),
                 };
-            case "closePosition2":
-            case "closePositionIfEmpty":
+            case "close_position2":
+            case "close_position_if_empty":
+                return {
+                    position: accountMetas[0].pubkey.toBase58(),
+                    lbPair: "",
+                    sender: hawksightAccount || accountMetas[1].pubkey.toBase58(),
+                };
+            // Add missing instructions with reasonable defaults
+            case "initialize_position_pda":
+            case "initialize_position_by_operator":
+                return {
+                    position: accountMetas[0].pubkey.toBase58(),
+                    lbPair: accountMetas[1].pubkey.toBase58(),
+                    sender: hawksightAccount || accountMetas[2].pubkey.toBase58(),
+                };
+            case "add_liquidity":
+            case "add_liquidity_by_strategy":
+            case "add_liquidity_by_strategy_one_side":
+                return {
+                    position: accountMetas[0].pubkey.toBase58(),
+                    lbPair: accountMetas[1].pubkey.toBase58(),
+                    sender: hawksightAccount || accountMetas[7].pubkey.toBase58(),
+                };
+            case "remove_liquidity":
+            case "remove_all_liquidity":
+            case "remove_liquidity_by_range":
+                return {
+                    position: accountMetas[0].pubkey.toBase58(),
+                    lbPair: accountMetas[1].pubkey.toBase58(),
+                    sender: hawksightAccount || accountMetas[7].pubkey.toBase58(),
+                };
+            case "claim_fee":
+                return {
+                    position: accountMetas[1].pubkey.toBase58(),
+                    lbPair: accountMetas[0].pubkey.toBase58(),
+                    sender: hawksightAccount || accountMetas[2].pubkey.toBase58(),
+                };
+            case "close_position":
                 return {
                     position: accountMetas[0].pubkey.toBase58(),
                     lbPair: "",

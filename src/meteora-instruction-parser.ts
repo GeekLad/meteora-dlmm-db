@@ -4,8 +4,8 @@ import {
   type Instruction,
   BorshEventCoder,
   BorshInstructionCoder,
-} from "@project-serum/anchor";
-import { base64, bs58 } from "@project-serum/anchor/dist/cjs/utils/bytes";
+} from "@coral-xyz/anchor";
+import { base64, bs58 } from "@coral-xyz/anchor/dist/cjs/utils/bytes";
 import type {
   AccountMeta,
   ParsedInstruction,
@@ -30,59 +30,101 @@ export type MeteoraDlmmInstructionType =
   | "close";
 
 export type MeteoraDlmmInstructionName =
-  | "initializePosition"
-  | "initializePositionPda"
-  | "initializePositionByOperator"
-  | "addLiquidity"
-  | "addLiquidity2"
-  | "addLiquidityByWeight"
-  | "addLiquidityByStrategy"
-  | "addLiquidityByStrategy2"
-  | "addLiquidityByStrategyOneSide"
-  | "addLiquidityOneSidePrecise2"
-  | "addLiquidityOneSide"
-  | "addLiquidityOneSidePrecise"
-  | "removeLiquidity"
-  | "removeLiquidity2"
-  | "removeAllLiquidity"
-  | "removeLiquiditySingleSide"
-  | "removeLiquidityByRange"
-  | "removeLiquidityByRange2"
-  | "RemoveLiquidity"
-  | "claimFee"
-  | "claimFee2"
-  | "closePosition"
-  | "closePositionIfEmpty"
-  | "closePosition2";
+  | "add_liquidity"
+  | "add_liquidity2"
+  | "add_liquidity_by_strategy"
+  | "add_liquidity_by_strategy2"
+  | "add_liquidity_by_strategy_one_side"
+  | "add_liquidity_by_weight"
+  | "add_liquidity_one_side"
+  | "add_liquidity_one_side_precise"
+  | "add_liquidity_one_side_precise2"
+  | "claim_fee"
+  | "claim_fee2"
+  | "claim_reward"
+  | "claim_reward2"
+  | "close_claim_protocol_fee_operator"
+  | "close_position"
+  | "close_position2"
+  | "close_position_if_empty"
+  | "close_preset_parameter"
+  | "close_preset_parameter2"
+  | "create_claim_protocol_fee_operator"
+  | "decrease_position_length"
+  | "for_idl_type_generation_do_not_call"
+  | "fund_reward"
+  | "go_to_a_bin"
+  | "increase_oracle_length"
+  | "increase_position_length"
+  | "initialize_bin_array"
+  | "initialize_bin_array_bitmap_extension"
+  | "initialize_customizable_permissionless_lb_pair"
+  | "initialize_customizable_permissionless_lb_pair2"
+  | "initialize_lb_pair"
+  | "initialize_lb_pair2"
+  | "initialize_permission_lb_pair"
+  | "initialize_position"
+  | "initialize_position_by_operator"
+  | "initialize_position_pda"
+  | "initialize_preset_parameter"
+  | "initialize_preset_parameter2"
+  | "initialize_reward"
+  | "initialize_token_badge"
+  | "migrate_bin_array"
+  | "migrate_position"
+  | "rebalance_liquidity"
+  | "remove_all_liquidity"
+  | "remove_liquidity"
+  | "remove_liquidity2"
+  | "remove_liquidity_by_range"
+  | "remove_liquidity_by_range2"
+  | "set_activation_point"
+  | "set_pair_status"
+  | "set_pair_status_permissionless"
+  | "set_pre_activation_duration"
+  | "set_pre_activation_swap_address"
+  | "swap"
+  | "swap2"
+  | "swap_exact_out"
+  | "swap_exact_out2"
+  | "swap_with_price_impact"
+  | "swap_with_price_impact2"
+  | "update_base_fee_parameters"
+  | "update_dynamic_fee_parameters"
+  | "update_fees_and_reward2"
+  | "update_fees_and_rewards"
+  | "update_position_operator"
+  | "update_reward_duration"
+  | "update_reward_funder"
+  | "withdraw_ineligible_reward"
+  | "withdraw_protocol_fee";
 
 const INSTRUCTION_MAP: Map<
   MeteoraDlmmInstructionName,
   MeteoraDlmmInstructionType
 > = new Map([
-  ["initializePosition", "open"],
-  ["initializePositionPda", "open"],
-  ["initializePositionByOperator", "open"],
-  ["addLiquidity", "add"],
-  ["addLiquidity2", "add"],
-  ["addLiquidityByWeight", "add"],
-  ["addLiquidityByStrategy", "add"],
-  ["addLiquidityByStrategy2", "add"],
-  ["addLiquidityByStrategyOneSide", "add"],
-  ["addLiquidityOneSide", "add"],
-  ["addLiquidityOneSidePrecise", "add"],
-  ["addLiquidityOneSidePrecise2", "add"],
-  ["removeLiquidity", "remove"],
-  ["removeLiquidity2", "remove"],
-  ["removeAllLiquidity", "remove"],
-  ["removeLiquiditySingleSide", "remove"],
-  ["removeLiquidityByRange", "remove"],
-  ["removeLiquidityByRange2", "remove"],
-  ["RemoveLiquidity", "remove"],
-  ["claimFee", "claim"],
-  ["claimFee2", "claim"],
-  ["closePosition", "close"],
-  ["closePositionIfEmpty", "close"],
-  ["closePosition2", "close"],
+  ["initialize_position", "open"],
+  ["initialize_position_pda", "open"],
+  ["initialize_position_by_operator", "open"],
+  ["add_liquidity", "add"],
+  ["add_liquidity2", "add"],
+  ["add_liquidity_by_weight", "add"],
+  ["add_liquidity_by_strategy", "add"],
+  ["add_liquidity_by_strategy2", "add"],
+  ["add_liquidity_by_strategy_one_side", "add"],
+  ["add_liquidity_one_side", "add"],
+  ["add_liquidity_one_side_precise", "add"],
+  ["add_liquidity_one_side_precise2", "add"],
+  ["remove_liquidity", "remove"],
+  ["remove_liquidity2", "remove"],
+  ["remove_all_liquidity", "remove"],
+  ["remove_liquidity_by_range", "remove"],
+  ["remove_liquidity_by_range2", "remove"],
+  ["claim_fee", "claim"],
+  ["claim_fee2", "claim"],
+  ["close_position", "close"],
+  ["close_position_if_empty", "close"],
+  ["close_position2", "close"],
 ]);
 
 interface MeteoraDlmmDecodedInstruction extends Instruction {
@@ -119,9 +161,9 @@ export interface MeteoraDlmmInstruction {
 }
 
 const INSTRUCTION_CODER: BorshInstructionCoder = new BorshInstructionCoder(
-  IDL as Idl,
+  IDL as unknown as Idl,
 );
-let EVENT_CODER: BorshEventCoder = new BorshEventCoder(IDL as Idl);
+let EVENT_CODER: BorshEventCoder = new BorshEventCoder(IDL as unknown as Idl);
 
 export function sortMeteoraInstructions(
   instructions: MeteoraDlmmInstruction[],
@@ -316,7 +358,7 @@ function getPositionAccounts(
     )!;
     const position = positionAccount.pubkey.toBase58();
     const lbPairAccount = accounts.find(
-      (account) => account.name == "Lb Pair",
+      (account) => account.name == "Lb_pair",
     )!;
     const lbPair = lbPairAccount.pubkey.toBase58();
     const senderAccount = accounts.find(
@@ -324,16 +366,16 @@ function getPositionAccounts(
     )!;
     const sender = hawksightAccount || senderAccount.pubkey.toBase58();
     const tokenXMint = accounts
-      .find((account) => account.name == "Token X Mint")
+      .find((account) => account.name == "Token_x_mint")
       ?.pubkey?.toBase58();
     const tokenYMint = accounts
-      .find((account) => account.name == "Token Y Mint")
+      .find((account) => account.name == "Token_y_mint")
       ?.pubkey?.toBase58();
     const userTokenX = accounts
-      .find((account) => account.name == "User Token X")
+      .find((account) => account.name == "User_token_x")
       ?.pubkey?.toBase58();
     const userTokenY = accounts
-      .find((account) => account.name == "User Token Y")
+      .find((account) => account.name == "User_token_y")
       ?.pubkey?.toBase58();
 
     return {
@@ -347,54 +389,95 @@ function getPositionAccounts(
     };
   } catch (err) {
     switch (decodedInstruction.name) {
-      case "initializePosition":
+      case "initialize_position":
         return {
           position: accountMetas[1].pubkey.toBase58(),
           lbPair: accountMetas[2].pubkey.toBase58(),
           sender: hawksightAccount || accountMetas[3].pubkey.toBase58(),
         };
 
-      case "addLiquidityOneSide":
-      case "addLiquidityOneSidePrecise":
+      case "add_liquidity_one_side":
+      case "add_liquidity_one_side_precise":
         return {
           position: accountMetas[0].pubkey.toBase58(),
           lbPair: accountMetas[1].pubkey.toBase58(),
           sender: hawksightAccount || accountMetas[8].pubkey.toBase58(),
         };
 
-      case "addLiquidityByWeight":
+      case "add_liquidity_by_weight":
         return {
           position: accountMetas[0].pubkey.toBase58(),
           lbPair: accountMetas[1].pubkey.toBase58(),
           sender: hawksightAccount || accountMetas[11].pubkey.toBase58(),
         };
 
-      case "addLiquidity2":
-      case "addLiquidityByStrategy2":
-      case "removeLiquidity2":
-      case "removeLiquidityByRange2":
+      case "add_liquidity2":
+      case "add_liquidity_by_strategy2":
+      case "remove_liquidity2":
+      case "remove_liquidity_by_range2":
         return {
           position: accountMetas[0].pubkey.toBase58(),
           lbPair: accountMetas[1].pubkey.toBase58(),
           sender: hawksightAccount || accountMetas[9].pubkey.toBase58(),
         };
 
-      case "addLiquidityOneSidePrecise2":
+      case "add_liquidity_one_side_precise2":
         return {
           position: accountMetas[0].pubkey.toBase58(),
           lbPair: accountMetas[1].pubkey.toBase58(),
           sender: hawksightAccount || accountMetas[6].pubkey.toBase58(),
         };
 
-      case "claimFee2":
+      case "claim_fee2":
         return {
           position: accountMetas[1].pubkey.toBase58(),
           lbPair: accountMetas[0].pubkey.toBase58(),
           sender: hawksightAccount || accountMetas[2].pubkey.toBase58(),
         };
 
-      case "closePosition2":
-      case "closePositionIfEmpty":
+      case "close_position2":
+      case "close_position_if_empty":
+        return {
+          position: accountMetas[0].pubkey.toBase58(),
+          lbPair: "",
+          sender: hawksightAccount || accountMetas[1].pubkey.toBase58(),
+        };
+
+      // Add missing instructions with reasonable defaults
+      case "initialize_position_pda":
+      case "initialize_position_by_operator":
+        return {
+          position: accountMetas[0].pubkey.toBase58(),
+          lbPair: accountMetas[1].pubkey.toBase58(),
+          sender: hawksightAccount || accountMetas[2].pubkey.toBase58(),
+        };
+
+      case "add_liquidity":
+      case "add_liquidity_by_strategy":
+      case "add_liquidity_by_strategy_one_side":
+        return {
+          position: accountMetas[0].pubkey.toBase58(),
+          lbPair: accountMetas[1].pubkey.toBase58(),
+          sender: hawksightAccount || accountMetas[7].pubkey.toBase58(),
+        };
+
+      case "remove_liquidity":
+      case "remove_all_liquidity":
+      case "remove_liquidity_by_range":
+        return {
+          position: accountMetas[0].pubkey.toBase58(),
+          lbPair: accountMetas[1].pubkey.toBase58(),
+          sender: hawksightAccount || accountMetas[7].pubkey.toBase58(),
+        };
+
+      case "claim_fee":
+        return {
+          position: accountMetas[1].pubkey.toBase58(),
+          lbPair: accountMetas[0].pubkey.toBase58(),
+          sender: hawksightAccount || accountMetas[2].pubkey.toBase58(),
+        };
+
+      case "close_position":
         return {
           position: accountMetas[0].pubkey.toBase58(),
           lbPair: "",

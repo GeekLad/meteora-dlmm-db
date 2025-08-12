@@ -1,9 +1,10 @@
 import cache from "./jupiter-token-list-cache";
 import { ApiThrottleCache } from "./util";
 
-const JUPITER_TOKEN_LIST_API = "https://tokens.jup.ag";
-const MAX_CONCURRENT_REQUESTS = 10;
-const DELAY_MS = 30 * 1000;
+const JUPITER_LEGACY_TOKEN_LIST_API = "https://tokens.jup.ag";
+const JUPITER_V2_TOKEN_API = "https://lite-api.jup.ag/tokens/v2";
+const MAX_CONCURRENT_REQUESTS = 1;
+const DELAY_MS = 1 * 1000;
 const JUPITER_TOKEN_LIST_CACHE = cache as {
   lastUpdated: string;
   ignore: string[];
@@ -43,7 +44,9 @@ export interface TokenMeta {
 }
 
 export async function getFullJupiterTokenList(): Promise<TokenMeta[]> {
-  const response = await fetch(JUPITER_TOKEN_LIST_API + "/tokens_with_markets");
+  const response = await fetch(
+    JUPITER_LEGACY_TOKEN_LIST_API + "/tokens_with_markets",
+  );
   const responseText = await response.text();
 
   const data = JSON.parse(responseText) as JupiterTokenListToken[];
@@ -72,7 +75,9 @@ export class JupiterTokenListApi {
   }
 
   private static async _getToken(address: string): Promise<TokenMeta | null> {
-    const response = await fetch(JUPITER_TOKEN_LIST_API + `/token/${address}`);
+    const response = await fetch(
+      JUPITER_V2_TOKEN_API + `/search?query=${address}`,
+    );
     if (response.status == 429) {
       throw new Error(`Too many requests made to Jupiter API`);
     }
