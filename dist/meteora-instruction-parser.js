@@ -7,6 +7,7 @@ const INSTRUCTION_MAP = new Map([
     ["initialize_position", "open"],
     ["initialize_position_pda", "open"],
     ["initialize_position_by_operator", "open"],
+    ["rebalance_liquidity", "add"],
     ["add_liquidity", "add"],
     ["add_liquidity2", "add"],
     ["add_liquidity_by_weight", "add"],
@@ -292,9 +293,9 @@ function getActiveBinId(transaction, index) {
                 const eventData = base64.encode(ixData.subarray(8));
                 return EVENT_CODER.decode(eventData);
             });
-            const eventWithActiveBinId = events.find((event) => event && "activeBinId" in event.data);
+            const eventWithActiveBinId = events.find((event) => event && "active_bin_id" in event.data);
             return eventWithActiveBinId
-                ? eventWithActiveBinId.data.activeBinId
+                ? eventWithActiveBinId.data.active_bin_id
                 : null;
         }
     }

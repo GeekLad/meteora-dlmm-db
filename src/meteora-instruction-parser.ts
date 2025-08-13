@@ -106,6 +106,7 @@ const INSTRUCTION_MAP: Map<
   ["initialize_position", "open"],
   ["initialize_position_pda", "open"],
   ["initialize_position_by_operator", "open"],
+  ["rebalance_liquidity", "add"],
   ["add_liquidity", "add"],
   ["add_liquidity2", "add"],
   ["add_liquidity_by_weight", "add"],
@@ -518,11 +519,11 @@ function getActiveBinId(
       });
 
       const eventWithActiveBinId = events.find(
-        (event) => event && "activeBinId" in event.data,
+        (event) => event && "active_bin_id" in event.data,
       );
 
       return eventWithActiveBinId
-        ? (eventWithActiveBinId.data.activeBinId as number)
+        ? (eventWithActiveBinId.data.active_bin_id as number)
         : null;
     }
   }
