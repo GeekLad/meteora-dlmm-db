@@ -1,11 +1,9 @@
 import { DLMM_MAP, getAllDlmmPairDetails } from "../src/meteora-dlmm-api";
 import {
-  getFullJupiterTokenList,
   JupiterTokenListApi,
   TOKEN_MAP,
   TokenMeta,
 } from "../src/jupiter-token-list-api";
-import tokenCache from "../src/jupiter-token-list-cache.ts";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { delay } from "../src/util.ts";
 
@@ -78,10 +76,7 @@ if (newPairCount > 0) {
 
 // Update the Jupiter token list cache
 if (newPairCount > 0) {
-  console.log("Fetching full Jupiter token list");
-  const tokensFromApi = await getFullJupiterTokenList();
   const oldTokenListSize = TOKEN_MAP.size;
-  tokensFromApi.forEach((token) => TOKEN_MAP.set(token.address, token));
   const allDlmmTokenAddresses = Array.from(
     new Set(pairs.map((pair) => [pair.mintX, pair.mintY]).flat()),
   );

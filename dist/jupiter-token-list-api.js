@@ -13,7 +13,7 @@ import { ApiThrottleCache } from "./util";
 const JUPITER_LEGACY_TOKEN_LIST_API = "https://tokens.jup.ag";
 const JUPITER_V2_TOKEN_API = "https://lite-api.jup.ag/tokens/v2";
 const MAX_CONCURRENT_REQUESTS = 1;
-const DELAY_MS = 1 * 1000;
+const DELAY_MS = 1.1 * 1000;
 const JUPITER_TOKEN_LIST_CACHE = cache;
 export const TOKEN_MAP = new Map(JUPITER_TOKEN_LIST_CACHE.tokens.map((array) => {
     const [address, name, symbol, decimals, logoURI] = array;
@@ -44,12 +44,16 @@ export class JupiterTokenListApi {
             if (response.status == 429) {
                 throw new Error(`Too many requests made to Jupiter API`);
             }
-            const token = JSON.parse(yield response.text());
-            if (token == null || !token.address) {
+            const parsedResponse = JSON.parse(yield response.text());
+            if (parsedResponse.length === 0) {
                 return null;
             }
-            const { name, symbol, decimals, logoURI } = token;
-            return { address: token.address, name, symbol, decimals, logoURI };
+            const token = parsedResponse[0];
+            if (token == null || !token.id) {
+                return null;
+            }
+            const { id, name, symbol, decimals, icon: logoURI } = token;
+            return { address: token.id, name, symbol, decimals, logoURI };
         });
     }
 }

@@ -4,7 +4,7 @@ import { ApiThrottleCache } from "./util";
 const JUPITER_LEGACY_TOKEN_LIST_API = "https://tokens.jup.ag";
 const JUPITER_V2_TOKEN_API = "https://lite-api.jup.ag/tokens/v2";
 const MAX_CONCURRENT_REQUESTS = 1;
-const DELAY_MS = 1 * 1000;
+const DELAY_MS = 1.1 * 1000;
 const JUPITER_TOKEN_LIST_CACHE = cache as {
   lastUpdated: string;
   ignore: string[];
@@ -18,6 +18,59 @@ export const TOKEN_MAP: Map<string, TokenMeta> = new Map(
 );
 
 interface JupiterTokenListToken {
+  id: string;
+  name: string;
+  symbol: string;
+  icon: string;
+  decimals: number;
+  circSupply: number;
+  totalSupply: number;
+  tokenProgram: string;
+  firstPool: {
+    id: string;
+    createdAt: string;
+  };
+  holderCount: number;
+  audit: {
+    mintAuthorityDisabled: boolean;
+    freezeAuthorityDisabled: boolean;
+    topHoldersPercentage: number;
+  };
+  organicScore: number;
+  organicScoreLabel: string;
+  isVerified: boolean;
+  cexes: string[];
+  tags: string[];
+  fdv: number;
+  mcap: number;
+  usdPrice: number;
+  priceBlockId: number;
+  liquidity: number;
+  stats5m: JupiterTokenStats;
+  stats1h: JupiterTokenStats;
+  stats6h: JupiterTokenStats;
+  stats24h: JupiterTokenStats;
+  ctLikes: number;
+  smartCtLikes: number;
+  updatedAt: string;
+}
+
+interface JupiterTokenStats {
+  priceChange: number;
+  liquidityChange: number;
+  volumeChange: number;
+  buyVolume: number;
+  sellVolume: number;
+  buyOrganicVolume: number;
+  sellOrganicVolume: number;
+  numBuys: number;
+  numSells: number;
+  numTraders: number;
+  numOrganicBuyers: number;
+  numNetBuyers: number;
+}
+
+interface JupiterLegacyTokenListToken {
   address: string;
   name: string;
   symbol: string;
@@ -49,7 +102,7 @@ export async function getFullJupiterTokenList(): Promise<TokenMeta[]> {
   );
   const responseText = await response.text();
 
-  const data = JSON.parse(responseText) as JupiterTokenListToken[];
+  const data = JSON.parse(responseText) as JupiterLegacyTokenListToken[];
 
   return data.map((token) => {
     const { address, name, symbol, decimals, logoURI } = token;
@@ -81,13 +134,17 @@ export class JupiterTokenListApi {
     if (response.status == 429) {
       throw new Error(`Too many requests made to Jupiter API`);
     }
-    const token = JSON.parse(
+    const parsedResponse = JSON.parse(
       await response.text(),
-    ) as JupiterTokenListToken | null;
-    if (token == null || !token.address) {
+    ) as JupiterTokenListToken[];
+    if (parsedResponse.length === 0) {
       return null;
     }
-    const { name, symbol, decimals, logoURI } = token;
-    return { address: token.address, name, symbol, decimals, logoURI };
+    const token = parsedResponse[0];
+    if (token == null || !token.id) {
+      return null;
+    }
+    const { id, name, symbol, decimals, icon: logoURI } = token;
+    return { address: token.id, name, symbol, decimals, logoURI };
   }
 }
