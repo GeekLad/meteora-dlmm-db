@@ -246,8 +246,8 @@ export default class MeteoraDlmmDb {
             COALESCE(i.removal_bps, 0) removal_bps,
             i.instruction_name = "removeLiquiditySingleSide" is_one_sided_removal,
             MAX(CASE WHEN i.instruction_type = 'close' THEN 1 END) OVER (PARTITION BY i.position_address RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) IS NULL position_is_open,
-            CASE WHEN i.instruction_type in ('add', 'open') AND RANK() OVER (PARTITION BY p.pair_address ORDER BY i.block_time, i.signature) = 1 THEN 1 ELSE 0 END is_opening_transaction,
-            CASE WHEN i.instruction_type = 'close' AND RANK() OVER (PARTITION BY p.pair_address ORDER BY i.block_time DESC, i.signature DESC) = 1 THEN 1 ELSE 0 END is_closing_transaction,
+            CASE WHEN i.instruction_type in ('add', 'open') AND ROW_NUMBER() OVER (PARTITION BY i.position_address ORDER BY i.block_time, it.priority, i.signature) = 1 THEN 1 ELSE 0 END is_opening_transaction,
+            CASE WHEN i.instruction_type = 'close' AND ROW_NUMBER() OVER (PARTITION BY i.position_address ORDER BY i.block_time DESC, it.priority DESC, i.signature DESC) = 1 THEN 1 ELSE 0 END is_closing_transaction,
             COALESCE(ttx.amount, 0) / POWER(10, x.decimals) x_amount,
             COALESCE(tty.amount, 0) / POWER(10, y.decimals) y_amount,
             COALESCE(ttx.usd_amount, 0) + COALESCE(tty.usd_amount, 0) usd_amount
@@ -272,7 +272,7 @@ export default class MeteoraDlmmDb {
               AND tty.instruction_name = i.instruction_name 
               AND tty.mint = y.address
           ORDER BY
-              p.pair_address, i.block_time, i.signature
+              p.pair_address, i.block_time, i.position_address, i.signature, it.priority
         ),
         instructions_with_contiguous_active_bin_ids AS (
           SELECT
@@ -528,7 +528,9 @@ export default class MeteoraDlmmDb {
         ORDER BY
           block_time,
           position_address,
-          signature;
+          signature,
+					is_opening_transaction DESC,
+					is_closing_transaction;
 
       -------------------
       -- Missing Pairs --
