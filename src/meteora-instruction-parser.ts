@@ -519,11 +519,13 @@ function getActiveBinId(
       });
 
       const eventWithActiveBinId = events.find(
-        (event) => event && "active_bin_id" in event.data,
+        (event) =>
+          event && ("active_bin_id" in event.data || "bin_id" in event.data),
       );
 
       return eventWithActiveBinId
-        ? (eventWithActiveBinId.data.active_bin_id as number)
+        ? (eventWithActiveBinId.data.active_bin_id as number) ||
+            (eventWithActiveBinId.data.bin_id as number)
         : null;
     }
   }

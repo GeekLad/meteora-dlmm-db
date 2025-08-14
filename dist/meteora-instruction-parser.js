@@ -293,9 +293,10 @@ function getActiveBinId(transaction, index) {
                 const eventData = base64.encode(ixData.subarray(8));
                 return EVENT_CODER.decode(eventData);
             });
-            const eventWithActiveBinId = events.find((event) => event && "active_bin_id" in event.data);
+            const eventWithActiveBinId = events.find((event) => event && ("active_bin_id" in event.data || "bin_id" in event.data));
             return eventWithActiveBinId
-                ? eventWithActiveBinId.data.active_bin_id
+                ? eventWithActiveBinId.data.active_bin_id ||
+                    eventWithActiveBinId.data.bin_id
                 : null;
         }
     }
